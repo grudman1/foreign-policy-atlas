@@ -97,11 +97,20 @@ header p{margin:0;color:var(--ink2);font-size:13.5px}
 #inset .lbl2{font-size:9px;font-weight:600;fill:var(--ink2);pointer-events:none;
   paint-order:stroke;stroke:var(--lblbg);stroke-width:2.6px;stroke-linejoin:round}
 .insetempty{color:var(--ink3);font-size:12.5px;padding:30px 8px;text-align:center}
-#map svg{width:100%;height:auto;display:block}
+#map svg{width:100%;height:auto;display:block;cursor:grab}
+#map svg:active{cursor:grabbing}
+#map svg .cty,
+#map svg .rgoutline,
+#map svg .rglead{vector-effect:non-scaling-stroke}
 .cty{cursor:pointer;transition:opacity .15s}
 .cty:hover{opacity:.74}
 .cty.sel{stroke:var(--ink);stroke-width:1.4}
 .cty.dimmed{opacity:.26}
+.zoom-reset{position:absolute;top:14px;right:14px;z-index:5;
+  font-size:11.5px;background:var(--panel);border:1px solid var(--line);
+  border-radius:7px;padding:4px 10px;color:var(--ink2);cursor:pointer;
+  font-family:inherit;opacity:.88;transition:opacity .15s,border-color .15s,color .15s}
+.zoom-reset:hover{opacity:1;border-color:var(--accent);color:var(--ink)}
 .rgoutline{fill:none;stroke:var(--ink);stroke-width:1.7;pointer-events:none;
   stroke-linejoin:round;opacity:0;transition:opacity .2s}
 .rgoutline.show{opacity:.92}
@@ -194,7 +203,10 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 
 <div class="layout">
   <div>
-    <div class="mapcard"><div id="map">Loading map&hellip;</div></div>
+    <div class="mapcard" style="position:relative">
+      <button class="zoom-reset" onclick="resetMapZoom()" title="Reset map view">Reset view</button>
+      <div id="map">Loading map&hellip;</div>
+    </div>
     <div class="mapcard insetcard" id="insetcard">
       <div class="insethead"><span id="insettitle">Detail view</span>
         <span class="insethint" id="insethint">select a country or region to zoom in</span></div>

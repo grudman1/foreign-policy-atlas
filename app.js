@@ -278,7 +278,12 @@ function paint(){
   svgSel.selectAll(".rglabel").classed("active",function(d){return d===selRegion;});
 }
 
-/* ---- delta chevrons at country centroids (separate g-layer for z-order) ---- */
+/* ---- delta chevrons at country centroids (separate g-layer for z-order) ----
+   Each chevron is sized to the country it sits inside, so a tiny island
+   gets a small mark and Russia gets a big one. Single-arrow chevrons
+   (↑ → ↓) can be roughly as wide as the country; double-arrow chevrons
+   (↑↑ ↓↓) need ~2x horizontal room so they're scaled down.
+*/
 function paintDeltas(){
   if(!gD || !ALLFEATS) return;
   gD.selectAll("*").remove();
@@ -291,16 +296,21 @@ function paintDeltas(){
     if(selRegion && regionOf[k]!==selRegion) return;
     var c=geoPath.centroid(f);
     if(!c || isNaN(c[0])) return;
-    // skip features so small a 7px label would dominate
     var bb=geoPath.bounds(f);
     var w=bb[1][0]-bb[0][0], h=bb[1][1]-bb[0][1];
-    if(w<6 || h<6) return;
+    // size: fit by the more constraining of width and height.
+    // text width ≈ 0.6 * fontSize per character; height ≈ fontSize.
+    var nchar = d.delta.length; // 1 for ↑→↓, 2 for ↑↑/↓↓
+    var sz = Math.min(w / (0.62*nchar), h * 0.85);
+    if (sz < 3.5) return;        // too cramped — skip entirely
+    if (sz > 18) sz = 18;        // ceiling so Russia etc. don't get a huge label
     gD.append("text")
       .attr("x", c[0]).attr("y", c[1])
       .attr("text-anchor","middle")
       .attr("dominant-baseline","middle")
       .attr("class","delta-lbl")
       .attr("data-delta", d.delta)
+      .style("font-size", sz.toFixed(2)+"px")
       .text(d.delta);
   });
 }
@@ -456,6 +466,8 @@ function switchPresident(id){
 }
 
 
+var _mapZoom=null;  // d3.zoom behavior, exposed for reset
+
 function startMap(){
   d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(world){
     var host=document.getElementById("map");host.textContent="";
@@ -467,7 +479,14 @@ function startMap(){
     svgSel=d3.select(host).append("svg").attr("viewBox","0 0 960 480")
       .attr("role","img").attr("aria-label","World map of US alignment");
 
-    var gC=svgSel.append("g");
+    // Invisible background rect so drag-to-pan works when starting from ocean
+    svgSel.append("rect").attr("class","panbg")
+      .attr("width",960).attr("height",480).attr("fill","transparent");
+
+    // Single transform group that gets the zoom/pan; all map layers live inside it
+    var gMap = svgSel.append("g").attr("class","zoom-group");
+
+    var gC=gMap.append("g");
     gC.selectAll("path").data(feats).join("path")
       .attr("class","cty")
       .attr("d",geoPath).attr("stroke",cssv("--stroke")).attr("stroke-width",0.5)
@@ -484,11 +503,11 @@ function startMap(){
       return null;
     };
 
-    gOut=svgSel.append("g");   // region outline group (rebuilt per president)
-    gD =svgSel.append("g").attr("class","delta-layer"); // delta chevrons
+    gOut=gMap.append("g");   // region outline group (rebuilt per president)
+    gD =gMap.append("g").attr("class","delta-layer"); // delta chevrons
 
     // region labels with leader lines (layout-based; shared across presidents)
-    var gL=svgSel.append("g");
+    var gL=gMap.append("g");
     Object.keys(RLAYOUT).forEach(function(r){
       var Lp=RLAYOUT[r];
       var g=gL.append("g").attr("class","rglabel").datum(r)
@@ -512,11 +531,31 @@ function startMap(){
         .attr("rx",6);
     });
 
+    // Zoom + pan. scaleExtent: 1 = unzoomed (full world), up to 12x.
+    // translateExtent keeps the map roughly within the original viewport so
+    // you can't pan the world off-screen.
+    _mapZoom = d3.zoom()
+      .scaleExtent([1, 12])
+      .translateExtent([[-100,-100],[1060,580]])
+      .on("zoom", function(event){
+        gMap.attr("transform", event.transform);
+      });
+    svgSel.call(_mapZoom);
+    // Disable D3's default double-click-to-zoom; we use the button for reset.
+    svgSel.on("dblclick.zoom", null);
+
     buildRegionGeometry();
     paint(); paintDeltas();
   }).catch(function(){
     document.getElementById("map").innerHTML='<p style="color:var(--ink3);padding:20px">Map data could not be loaded. Country search and the Region tab still work.</p>';
   });
+}
+
+/* Reset the map zoom/pan back to the default world view. Exposed for the
+   Reset button in index.html. */
+function resetMapZoom(){
+  if(!svgSel || !_mapZoom) return;
+  svgSel.transition().duration(280).call(_mapZoom.transform, d3.zoomIdentity);
 }
 
 /* ---- country search (uses the global allKeys for the current president) ---- */

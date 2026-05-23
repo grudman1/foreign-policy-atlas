@@ -284,30 +284,84 @@ function paint(){
    centroid drifts toward the average of all sub-polygons and often
    lands in the ocean. Pick the largest projected sub-polygon and label
    that one instead. Returns {cx, cy, w, h} or null if unprojectable. */
-function bestLabelTarget(feature){
+function bestLabelTarget(feature, pathArg){
   if(!feature || !feature.geometry) return null;
+  var path = pathArg || geoPath;
   var target = feature;
   if(feature.geometry.type === "MultiPolygon"){
     var polys = feature.geometry.coordinates;
     var bestArea = -Infinity, bestIdx = 0;
     for(var i=0;i<polys.length;i++){
-      var a = geoPath.area({type:"Polygon", coordinates: polys[i]});
+      var a = path.area({type:"Polygon", coordinates: polys[i]});
       if(a > bestArea){ bestArea = a; bestIdx = i; }
     }
     target = { type:"Polygon", coordinates: polys[bestIdx] };
   }
-  var c = geoPath.centroid(target);
+  var c = path.centroid(target);
   if(!c || isNaN(c[0])) return null;
-  var bb = geoPath.bounds(target);
+  var bb = path.bounds(target);
   return { cx: c[0], cy: c[1], w: bb[1][0]-bb[0][0], h: bb[1][1]-bb[0][1] };
 }
 
-/* ---- delta chevrons at country centroids (separate g-layer for z-order) ----
-   Each chevron is sized to the country it sits inside, so a tiny island
-   gets a small mark and Russia gets a big one. Single-arrow chevrons
-   (↑ → ↓) can be roughly as wide as the country; double-arrow chevrons
-   (↑↑ ↓↓) need ~2x horizontal room so they're scaled down.
+/* ---- delta marks at country centroids (separate g-layer for z-order) ----
+   Each mark is sized to the country it sits inside, so a tiny island gets a
+   small mark and Russia gets a clamped (not giant) one. The mark is a soft
+   white-with-dark-outline arrow rotated to match the delta direction; the
+   "strong" deltas (↑↑ / ↓↓) use a stacked double chevron head. Countries too
+   small for an arrow get a dot fallback; ones too small even for that are
+   skipped entirely.
 */
+function appendDeltaMark(parentG, cx, cy, delta, size){
+  // tiny: dot fallback (state still gets a visible mark, but no glyph)
+  if(size < 9){
+    var r = Math.max(size * 0.34, 2);
+    parentG.append("circle")
+      .attr("cx", cx).attr("cy", cy).attr("r", r)
+      .attr("fill", "var(--arrow-fill)")
+      .attr("stroke", "var(--arrow-outline)")
+      .attr("stroke-width", 1.2);
+    return;
+  }
+  // delta -> rotation (up=0°, right=90°, down=180°) and head style
+  var deg, dbl;
+  if(delta === "↑↑"){ deg = 0;   dbl = true;  }
+  else if(delta === "↑"){ deg = 0;   dbl = false; }
+  else if(delta === "→"){ deg = 90;  dbl = false; }
+  else if(delta === "↓"){ deg = 180; dbl = false; }
+  else if(delta === "↓↓"){ deg = 180; dbl = true;  }
+  else return;
+
+  // up-pointing arrow geometry centered on (cx, cy); rotated below.
+  var s = size * 0.5;
+  var c = size * 0.30;
+  var g = size * 0.26;
+  var d = "M "+cx+" "+(cy+s)+" L "+cx+" "+(cy-s)+
+          " M "+(cx-c)+" "+(cy-s+c)+" L "+cx+" "+(cy-s)+" L "+(cx+c)+" "+(cy-s+c);
+  if(dbl){
+    d += " M "+(cx-c)+" "+(cy-s+c+g)+" L "+cx+" "+(cy-s+g)+" L "+(cx+c)+" "+(cy-s+c+g);
+  }
+
+  var wI = Math.max(size * 0.15, 1.3);
+  var wO = wI + Math.max(size * 0.12, 1.5);
+
+  var grp = parentG.append("g")
+    .attr("transform", "rotate("+deg+" "+cx+" "+cy+")");
+  // outline first (under)
+  grp.append("path").attr("d", d)
+    .attr("fill", "none")
+    .attr("stroke", "var(--arrow-outline)")
+    .attr("stroke-width", wO)
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round");
+  // inner stroke (over)
+  grp.append("path").attr("d", d)
+    .attr("fill", "none")
+    .attr("stroke", "var(--arrow-fill)")
+    .attr("stroke-width", wI)
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round");
+}
+
 function paintDeltas(){
   if(!gD || !ALLFEATS) return;
   gD.selectAll("*").remove();
@@ -320,19 +374,10 @@ function paintDeltas(){
     if(selRegion && regionOf[k]!==selRegion) return;
     var pos = bestLabelTarget(f);
     if(!pos) return;
-    // size: fit by the more constraining of width and height.
-    // text width ≈ 0.62 * fontSize per character; height ≈ fontSize.
-    var nchar = d.delta.length; // 1 for ↑→↓, 2 for ↑↑/↓↓
-    var sz = Math.min(pos.w / (0.62*nchar), pos.h * 0.85);
-    if (sz < 3.5) return;        // too cramped — skip entirely
-    if (sz > 18) sz = 18;        // ceiling so Russia etc. don't get a huge label
-    gD.append("text")
-      .attr("x", pos.cx).attr("y", pos.cy)
-      .attr("text-anchor","middle")
-      .attr("dominant-baseline","middle")
-      .attr("class","delta-lbl")
-      .style("font-size", sz.toFixed(2)+"px")
-      .text(d.delta);
+    var m = Math.min(pos.w, pos.h);
+    if(m < 5) return;                    // too small for any mark
+    var size = Math.min(m * 0.34, 30);   // 30 = ceiling so huge countries aren't giant
+    appendDeltaMark(gD, pos.cx, pos.cy, d.delta, size);
   });
 }
 
@@ -395,25 +440,20 @@ function drawInset(mode, key){
     .on("click",function(e,d){showCountry(d.properties.name);})
     .append("title").text(function(d){return d.properties.name;});
 
-  // delta chevrons inside the inset (larger font than the main map)
-  svg2.append("g").selectAll("text").data(focusFeats.filter(function(ff){
-    var k=keyFor(ff.properties.name);
-    var d=k?DOSSIER[k]:null;
-    return d && d.delta && d.delta!=="—" && d.state!=="us";
-  })).join("text")
-    .attr("class","delta-lbl")
-    .style("font-size","13px")
-    .attr("text-anchor","middle").attr("dominant-baseline","middle")
-    .attr("x",function(d){return path2.centroid(d)[0];})
-    .attr("y",function(d){return path2.centroid(d)[1];})
-    .attr("data-delta",function(d){
-      var k=keyFor(d.properties.name);
-      return DOSSIER[k].delta;
-    })
-    .text(function(d){
-      var k=keyFor(d.properties.name);
-      return DOSSIER[k].delta;
-    });
+  // delta marks inside the inset — same soft arrow style as the main map,
+  // but with a larger ceiling because the inset is zoomed.
+  var gD2 = svg2.append("g");
+  focusFeats.forEach(function(ff){
+    var k2=keyFor(ff.properties.name);
+    var d2=k2?DOSSIER[k2]:null;
+    if(!d2 || !d2.delta || d2.delta==="—" || d2.state==="us") return;
+    var pos = bestLabelTarget(ff, path2);
+    if(!pos) return;
+    var m = Math.min(pos.w, pos.h);
+    if(m < 5) return;
+    var size = Math.min(m * 0.34, 40);   // 40 = inset ceiling (zoomed view)
+    appendDeltaMark(gD2, pos.cx, pos.cy, d2.delta, size);
+  });
 
   // labels for highlighted features (only if reasonably large on screen)
   svg2.append("g").selectAll("text.lbl2").data(focusFeats).join("text")

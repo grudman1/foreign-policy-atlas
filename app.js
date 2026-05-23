@@ -278,6 +278,29 @@ function paint(){
   svgSel.selectAll(".rglabel").classed("active",function(d){return d===selRegion;});
 }
 
+/* For multi-polygon countries (US with Alaska/Hawaii, Russia across the
+   antimeridian, Philippines, Indonesia, Greece, Norway, etc.), the raw
+   centroid drifts toward the average of all sub-polygons and often
+   lands in the ocean. Pick the largest projected sub-polygon and label
+   that one instead. Returns {cx, cy, w, h} or null if unprojectable. */
+function bestLabelTarget(feature){
+  if(!feature || !feature.geometry) return null;
+  var target = feature;
+  if(feature.geometry.type === "MultiPolygon"){
+    var polys = feature.geometry.coordinates;
+    var bestArea = -Infinity, bestIdx = 0;
+    for(var i=0;i<polys.length;i++){
+      var a = geoPath.area({type:"Polygon", coordinates: polys[i]});
+      if(a > bestArea){ bestArea = a; bestIdx = i; }
+    }
+    target = { type:"Polygon", coordinates: polys[bestIdx] };
+  }
+  var c = geoPath.centroid(target);
+  if(!c || isNaN(c[0])) return null;
+  var bb = geoPath.bounds(target);
+  return { cx: c[0], cy: c[1], w: bb[1][0]-bb[0][0], h: bb[1][1]-bb[0][1] };
+}
+
 /* ---- delta chevrons at country centroids (separate g-layer for z-order) ----
    Each chevron is sized to the country it sits inside, so a tiny island
    gets a small mark and Russia gets a big one. Single-arrow chevrons
@@ -294,22 +317,19 @@ function paintDeltas(){
     if(!d || !d.delta || d.delta==="—" || d.state==="us") return;
     if(hiddenState[d.state] || hiddenDelta[d.delta]) return;
     if(selRegion && regionOf[k]!==selRegion) return;
-    var c=geoPath.centroid(f);
-    if(!c || isNaN(c[0])) return;
-    var bb=geoPath.bounds(f);
-    var w=bb[1][0]-bb[0][0], h=bb[1][1]-bb[0][1];
+    var pos = bestLabelTarget(f);
+    if(!pos) return;
     // size: fit by the more constraining of width and height.
-    // text width ≈ 0.6 * fontSize per character; height ≈ fontSize.
+    // text width ≈ 0.62 * fontSize per character; height ≈ fontSize.
     var nchar = d.delta.length; // 1 for ↑→↓, 2 for ↑↑/↓↓
-    var sz = Math.min(w / (0.62*nchar), h * 0.85);
+    var sz = Math.min(pos.w / (0.62*nchar), pos.h * 0.85);
     if (sz < 3.5) return;        // too cramped — skip entirely
     if (sz > 18) sz = 18;        // ceiling so Russia etc. don't get a huge label
     gD.append("text")
-      .attr("x", c[0]).attr("y", c[1])
+      .attr("x", pos.cx).attr("y", pos.cy)
       .attr("text-anchor","middle")
       .attr("dominant-baseline","middle")
       .attr("class","delta-lbl")
-      .attr("data-delta", d.delta)
       .style("font-size", sz.toFixed(2)+"px")
       .text(d.delta);
   });

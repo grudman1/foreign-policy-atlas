@@ -163,6 +163,7 @@ function setTabSilent(t){
 }
 function clearPanel(){
   document.getElementById("pbody").innerHTML='<div class="empty">Click a country on the map or search above.</div>';
+  refreshAnalysisBtns();
 }
 
 function outcomeBlock(k){
@@ -183,7 +184,7 @@ function showCountry(name){
       '(shown neutral on the map). Most unclassified states were not part of a distinct Trump-era initiative through May 2026.</div>';
     selName=null; paint(); paintDeltas(); return;
   }
-  selName=name;
+  selName=name; refreshAnalysisBtns();
   var sColor=STATE_COLOR[d.state]||"--s-neutral";
   var sName =STATE_NAME [d.state]||"Unclassified";
   var sDesc =STATE_DESC [d.state]||"";
@@ -241,7 +242,7 @@ function showRegion(r){
   setTabSilent("region");
   var R=REGIONS[r], pb=document.getElementById("pbody");
   if(!R){showRegionList();return;}
-  selRegion=r; selName=null;
+  selRegion=r; selName=null; refreshAnalysisBtns();
   var html='<div class="backrow"><button onclick="backToRegions()">&lsaquo; all regions</button></div>'+
     '<div class="ph"><h2>'+r+'</h2></div>'+
     '<div class="tiltbadge">'+R.tilt+'</div>'+
@@ -255,7 +256,7 @@ function showRegion(r){
   paint(); paintDeltas();
   drawInset("region",r);
 }
-function backToRegions(){ selRegion=null; showRegionList(); paint(); paintDeltas(); }
+function backToRegions(){ selRegion=null; showRegionList(); paint(); paintDeltas(); refreshAnalysisBtns(); }
 
 
 /* ---- map painting (state-based) ---- */
@@ -579,4 +580,231 @@ document.getElementById("search").addEventListener("keydown",function(e){
   buildLegend();
   clearInset();
   startMap();
+  document.getElementById("acustomq").addEventListener("keydown",function(e){
+    if(e.key==="Enter") runCustomQ();
+  });
 })();
+
+/* ---- AI Analysis panel ---- */
+var _aAbort=null;
+var _aPreset=-1;
+
+function toggleAnalysis(){
+  var sec=document.getElementById("analysisSection");
+  var hdr=document.getElementById("analysisHeader");
+  if(!sec) return;
+  var open=sec.classList.toggle("aopen");
+  hdr.setAttribute("aria-expanded",open?"true":"false");
+}
+
+function refreshAnalysisBtns(){
+  var label=_buildContextLabel();
+  var el=document.getElementById("acontext");
+  if(el) el.innerHTML=label?"Focus: <b>"+_escHtml(label)+"</b>":"";
+  var inp=document.getElementById("acustomq");
+  if(inp){
+    if(selName) inp.placeholder="Ask about "+selName+"…";
+    else if(selRegion) inp.placeholder="Ask about the "+selRegion+" region…";
+    else inp.placeholder="Ask your own question about this foreign policy posture…";
+  }
+}
+
+function _buildContextLabel(){
+  if(selName) return selName;
+  if(selRegion) return selRegion+" region";
+  return "";
+}
+
+function buildContext(){
+  var P=window.PRESIDENTS[CURRENT]||{};
+  var label=P.label||CURRENT;
+  var lines=[
+    "You are an analytical assistant helping a researcher use the Foreign Policy Atlas, an interactive ledger of U.S. foreign-policy alignment.",
+    "President: "+label+". As of: "+(P.asOf||"unknown")+".",
+    "Relationship states used: Core Ally, Aligned, Neutral, Strained, Adversarial.",
+    "Deltas (↑1 ↑ → ↓ ↓2) show change from the prior administration's baseline."
+  ];
+  if(selName){
+    var k=keyFor(selName)||selName;
+    var d=DOSSIER[k];
+    if(d){
+      lines.push("--- Country dossier: "+k+" ---");
+      lines.push("State: "+(STATE_NAME[d.state]||d.state)+". Delta: "+(d.delta||"—")+".");
+      if(d.baseline && d.baseline!=="—") lines.push("Inherited baseline: "+d.baseline);
+      var pts=(d.points||[]).filter(function(p){return p!=="interp";});
+      if(pts.length) lines.push("Evidence:\n"+pts.map(function(p){return "• "+p;}).join("\n"));
+      var o=OUTCOMES[k];
+      if(o&&o.best&&o.best!=="—")
+        lines.push("Outcome projections — Best: "+o.best+" | Base: "+o.base+" | Downside: "+o.down);
+    }
+  } else if(selRegion){
+    var R=REGIONS[selRegion];
+    if(R){
+      lines.push("--- Region: "+selRegion+" ---");
+      lines.push("Tilt: "+R.tilt);
+      lines.push("Dynamics: "+R.dynamics);
+      lines.push("Flagship projects: "+R.projects.join("; "));
+      lines.push("US strategic goal: "+R.goal);
+      lines.push("Stakes: "+R.stakes);
+    }
+    var rc=allKeys.filter(function(k){return regionOf[k]===selRegion;});
+    if(rc.length){
+      lines.push("Countries in this region:");
+      rc.forEach(function(k){
+        var d=DOSSIER[k];
+        if(d) lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" (delta: "+(d.delta||"—")+")");
+      });
+    }
+  } else {
+    lines.push("Full atlas ("+allKeys.length+" entries):");
+    allKeys.forEach(function(k){
+      var d=DOSSIER[k]; if(!d||d.state==="us") return;
+      lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" delta:"+(d.delta||"—")+" region:"+(d.region||"—"));
+    });
+  }
+  return lines.join("\n");
+}
+
+var PRESETS_COUNTRY=[
+  "Summarize the regional trends relevant to this country's current alignment.",
+  "What are the key risks that could shift this country's alignment over the next 12 months?",
+  "Provide historical context: how does this country's current posture compare to its relationships with previous U.S. administrations?"
+];
+var PRESETS_REGION=[
+  "Summarize the dominant trends across countries in this region.",
+  "What are the key risks that could shift alignment in this region over the next 12 months?",
+  "Provide historical context: how does this region's current posture compare to prior U.S. administrations?"
+];
+var PRESETS_GLOBAL=[
+  "Summarize the major regional trends visible across the full atlas.",
+  "What are the highest-risk countries or regions for alignment shifts over the next 12 months?",
+  "How does this global alignment pattern compare historically to prior administrations?"
+];
+
+function _getPresets(){
+  if(selName) return PRESETS_COUNTRY;
+  if(selRegion) return PRESETS_REGION;
+  return PRESETS_GLOBAL;
+}
+
+function runAnalysis(idx){
+  _aPreset=idx;
+  [0,1,2].forEach(function(i){
+    var b=document.getElementById("abtn"+i);
+    if(b) b.classList.toggle("asel",i===idx);
+  });
+  _runQuery(_getPresets()[idx]);
+}
+
+function runCustomQ(){
+  var inp=document.getElementById("acustomq");
+  if(!inp) return;
+  var q=inp.value.trim(); if(!q) return;
+  _aPreset=-1;
+  [0,1,2].forEach(function(i){var b=document.getElementById("abtn"+i);if(b)b.classList.remove("asel");});
+  _runQuery(q);
+}
+
+function _setABtnsDisabled(dis){
+  [0,1,2].forEach(function(i){var b=document.getElementById("abtn"+i);if(b)b.disabled=dis;});
+  var inp=document.getElementById("acustomq"); if(inp) inp.disabled=dis;
+  var sb=document.querySelector(".asend"); if(sb) sb.disabled=dis;
+}
+
+function _runQuery(question){
+  if(_aAbort){_aAbort.abort();_aAbort=null;}
+  var sec=document.getElementById("analysisSection");
+  if(sec&&!sec.classList.contains("aopen")) toggleAnalysis();
+  var res=document.getElementById("aresult");
+  if(!res) return;
+  res.innerHTML='<span class="aload">Thinking…</span>';
+  _setABtnsDisabled(true);
+
+  var ctrl=new AbortController();
+  _aAbort=ctrl;
+
+  fetch("/api/analyze",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    signal:ctrl.signal,
+    body:JSON.stringify({
+      model:"claude-opus-4-7",
+      max_tokens:1024,
+      stream:true,
+      system:buildContext(),
+      messages:[{role:"user",content:question}]
+    })
+  }).then(function(resp){
+    if(!resp.ok){
+      return resp.text().then(function(t){
+        res.innerHTML='<span class="aload">Error '+resp.status+': '+_escHtml(t)+'</span>';
+        _setABtnsDisabled(false); _aAbort=null;
+      });
+    }
+    var reader=resp.body.getReader();
+    var decoder=new TextDecoder();
+    var buf="",fullText="";
+    res.innerHTML="";
+
+    function pump(){
+      reader.read().then(function(chunk){
+        if(chunk.done){
+          _renderMarkdown(fullText,res);
+          _setABtnsDisabled(false); _aAbort=null;
+          var cl=document.createElement("button");
+          cl.className="aclear"; cl.textContent="Clear";
+          cl.onclick=function(){res.innerHTML="";};
+          res.appendChild(cl);
+          return;
+        }
+        buf+=decoder.decode(chunk.value,{stream:true});
+        var lines=buf.split("\n"); buf=lines.pop();
+        lines.forEach(function(line){
+          if(!line.startsWith("data:")) return;
+          var data=line.slice(5).trim();
+          if(data==="[DONE]") return;
+          try{
+            var ev=JSON.parse(data);
+            if(ev.type==="content_block_delta"&&ev.delta&&ev.delta.type==="text_delta"){
+              fullText+=ev.delta.text;
+              res.textContent=fullText;
+            }
+          }catch(e){}
+        });
+        pump();
+      }).catch(function(err){
+        if(err.name!=="AbortError")
+          res.innerHTML='<span class="aload">Stream error: '+_escHtml(err.message)+'</span>';
+        _setABtnsDisabled(false); _aAbort=null;
+      });
+    }
+    pump();
+  }).catch(function(err){
+    if(err.name!=="AbortError")
+      res.innerHTML='<span class="aload">Request failed: '+_escHtml(err.message)+'</span>';
+    _setABtnsDisabled(false); _aAbort=null;
+  });
+}
+
+function _escHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function _renderMarkdown(text,el){
+  var blocks=text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").split(/\n\n+/);
+  var html=blocks.map(function(block){
+    block=block.trim(); if(!block) return "";
+    if(/^#{1,3} /.test(block))
+      return block.replace(/^#{1,3} (.+)$/,"<h4>$1</h4>");
+    if(/^[-*] /.test(block)){
+      var items=block.split(/\n/).map(function(l){return l.replace(/^[-*] (.+)$/,"<li>$1</li>");}).join("");
+      return "<ul>"+items+"</ul>";
+    }
+    var p=block
+      .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g,"<em>$1</em>")
+      .replace(/\n/g," ");
+    return "<p>"+p+"</p>";
+  }).join("");
+  el.innerHTML=html;
+}

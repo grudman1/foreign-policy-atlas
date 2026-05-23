@@ -91,6 +91,31 @@ Push to GitHub, then connect Vercel, Netlify, or GitHub Pages for the repo.
 Because it's a static site, the default settings work with no build command;
 every push auto-deploys.
 
+## AI Analysis
+
+The "AI Analysis" panel in the right column is powered by `api/analyze.js`, a
+Vercel Edge Function that proxies to the Anthropic Messages API. The front-end
+in `app.js` POSTs the current dossier context plus a question to `/api/analyze`
+and renders the streamed reply; the function holds the API key server-side and
+pipes Anthropic's SSE stream straight through.
+
+For this to work in production:
+
+1. In the Vercel project settings, add `ANTHROPIC_API_KEY` as an environment
+   variable for both **Production** and **Preview**. The expected shape is
+   documented in `.env.example` (which holds no real value — never commit one).
+2. **Redeploy** after setting the variable; existing deployments won't pick it
+   up retroactively.
+
+For local testing, the existing `python3 -m http.server` flow only serves the
+static files — it does not run the Edge Function, so `/api/analyze` will 404
+locally. Run `vercel dev` from the repo root instead (requires the Vercel CLI
+and a `.env.local` containing your `ANTHROPIC_API_KEY`).
+
+If the key is missing or misconfigured, the panel will display the JSON error
+returned by the function rather than a Vercel 404 page — that's the signal that
+the route exists but the environment isn't set up yet.
+
 ## Notes from the prototype
 
 - The Trump map is a projected May 2026 timeline; outcome lines are analytical

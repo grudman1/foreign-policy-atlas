@@ -392,4 +392,168 @@ document.getElementById("search").addEventListener("keydown",function(e){
   buildLegend();
   clearInset();
   startMap();
+  document.getElementById("acustomq").addEventListener("keydown", function(e){
+    if(e.key==="Enter") runCustomQ();
+  });
 })();
+
+/* =====================================================================
+   Analysis panel — AI commentary via Anthropic API
+   ===================================================================== */
+
+var A_PROMPTS={
+  regional:"Based on this data about Trump's second-term foreign policy, analyze the 3 most significant regional trends in the current alignment ledger. Be concise and analytical.",
+  risks:"What are the 3 biggest structural risks or vulnerabilities in this foreign policy posture? Focus on durability, dependencies, and second-order effects.",
+  historical:"How does this foreign policy posture compare to historical US foreign policy patterns? What's genuinely new vs. what follows established precedents?"
+};
+
+var A_SYSTEM="You are a foreign policy analyst. You have been given the full dossier of Trump second-term (2025–2026) US foreign policy alignments — 130+ countries classified into tiers (emerging gain, solid gain, established ally, in play, strained, adversarial) with sourced reasoning and regional analysis. Respond analytically and concisely in 3–5 short paragraphs. Do not use bullet points. No partisan framing.";
+
+function toggleAnalysis(){
+  var sec=document.getElementById("analysisSection");
+  var hdr=document.getElementById("analysisHeader");
+  var open=sec.classList.toggle("aopen");
+  hdr.setAttribute("aria-expanded", open?"true":"false");
+  if(open){
+    var saved=localStorage.getItem("fp_atlas_key")||"";
+    if(saved){
+      document.getElementById("akeyinput").value=saved;
+      document.getElementById("akeymsg").textContent="Key saved";
+    }
+  }
+}
+
+function saveAKey(){
+  var val=document.getElementById("akeyinput").value.trim();
+  var msg=document.getElementById("akeymsg");
+  if(!val){msg.textContent="Enter a key first.";return;}
+  localStorage.setItem("fp_atlas_key",val);
+  msg.textContent="Saved.";
+  setTimeout(function(){msg.textContent="Key saved";},1500);
+}
+
+function buildContext(){
+  var P=window.PRESIDENTS[CURRENT]||{};
+  var dos=P.dossier||{}, regs=P.regions||{};
+  var tn={1:"Emerging gain",2:"Solid gain",3:"Established ally",4:"In play",5:"Strained",6:"Adversarial"};
+  var cnt={}, ent={1:[],2:[],3:[],4:[],5:[],6:[]};
+  Object.keys(dos).forEach(function(k){
+    if(k==="Venezuela_note")return;
+    var t=dos[k].tier; if(!t||t===0)return;
+    cnt[t]=(cnt[t]||0)+1;
+    if(ent[t])ent[t].push(k);
+  });
+  var lines=["DOSSIER: "+(P.label||CURRENT)+" ("+(P.asOf||"")+")", ""];
+  lines.push("TIER COUNTS:");
+  [2,1,3,4,5,6].forEach(function(t){
+    if(cnt[t])lines.push("  T"+t+" "+tn[t]+": "+cnt[t]+" — "+ent[t].join(", "));
+  });
+  lines.push("");
+  lines.push("REGIONAL OVERVIEW:");
+  Object.keys(regs).forEach(function(r){
+    var R=regs[r];
+    lines.push("  "+r+" ["+R.tilt+"]: "+R.dynamics+" | Goal: "+R.goal);
+  });
+  lines.push("");
+  lines.push("COUNTRY DETAILS (T2 solid gains, T6 adversarial, T4 in-play):");
+  [2,6,4].forEach(function(t){
+    (ent[t]||[]).forEach(function(k){
+      var d=dos[k]; if(!d)return;
+      var pts=d.points.filter(function(p){return p!=="interp";}).slice(0,3);
+      lines.push("  "+k+" [T"+t+"]: "+pts.join(" | "));
+    });
+  });
+  return lines.join("\n");
+}
+
+function setAActive(idx){
+  for(var i=0;i<3;i++){
+    var b=document.getElementById("abtn"+i);
+    if(b)b.classList.toggle("asel",i===idx);
+  }
+}
+
+function runAnalysis(type){
+  setAActive({regional:0,risks:1,historical:2}[type]);
+  sendToAPI(A_PROMPTS[type]);
+}
+
+function runCustomQ(){
+  var q=document.getElementById("acustomq").value.trim();
+  if(!q)return;
+  setAActive(-1);
+  sendToAPI(q);
+}
+
+function sendToAPI(question){
+  var key=localStorage.getItem("fp_atlas_key")||"";
+  var res=document.getElementById("aresult");
+  if(!key){
+    res.innerHTML='<p style="color:var(--bad)">Enter your Anthropic API key above and click Save.</p>';
+    return;
+  }
+  var userMsg=buildContext()+"\n\n---\n\n"+question;
+  var btns=document.querySelectorAll(".abtn,.asend");
+  btns.forEach(function(b){b.disabled=true;});
+  res.innerHTML='<p class="aload">Analyzing…</p>';
+
+  fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key":key,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true"
+    },
+    body:JSON.stringify({
+      model:"claude-sonnet-4-20250514",
+      max_tokens:1000,
+      stream:true,
+      system:A_SYSTEM,
+      messages:[{role:"user",content:userMsg}]
+    })
+  }).then(function(r){
+    if(!r.ok)return r.json().then(function(e){throw new Error((e.error&&e.error.message)||"HTTP "+r.status);});
+    var reader=r.body.getReader();
+    var dec=new TextDecoder();
+    var buf="",acc="";
+    res.innerHTML="";
+    function pump(){
+      return reader.read().then(function(chunk){
+        if(chunk.done){
+          var paras=acc.split(/\n\n+/).filter(Boolean);
+          res.innerHTML=(paras.length
+            ? paras.map(function(p){return "<p>"+p.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/\n/g,"<br>")+"</p>";}).join("")
+            : "<p>"+acc.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</p>")+
+            '<button class="aclear" onclick="clearA()">\xd7 clear</button>';
+          btns.forEach(function(b){b.disabled=false;});
+          return;
+        }
+        buf+=dec.decode(chunk.value,{stream:true});
+        var lines=buf.split("\n"); buf=lines.pop();
+        lines.forEach(function(line){
+          if(!line.startsWith("data: "))return;
+          var d=line.slice(6).trim();
+          if(d==="[DONE]")return;
+          try{
+            var ev=JSON.parse(d);
+            if(ev.type==="content_block_delta"&&ev.delta&&ev.delta.type==="text_delta"){
+              acc+=ev.delta.text;
+              res.innerHTML="<p>"+acc.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</p>";
+            }
+          }catch(e){}
+        });
+        return pump();
+      });
+    }
+    return pump();
+  }).catch(function(err){
+    res.innerHTML='<p style="color:var(--bad)">Error: '+(err.message||"request failed")+'. Check your API key and try again.</p>';
+    btns.forEach(function(b){b.disabled=false;});
+  });
+}
+
+function clearA(){
+  document.getElementById("aresult").innerHTML="";
+  setAActive(-1);
+}

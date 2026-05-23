@@ -675,51 +675,76 @@ function _buildContextLabel(){
   return "";
 }
 
+function _keyForIn(name, dossier){
+  if(ALIAS[name]&&dossier[ALIAS[name]]) return ALIAS[name];
+  if(dossier[name]) return name;
+  return null;
+}
+
 function buildContext(){
-  var P=window.PRESIDENTS[CURRENT]||{};
-  var label=P.label||CURRENT;
+  var ids=presidentList();
   var lines=[
-    "You are an analytical assistant helping a researcher use the Foreign Policy Atlas, an interactive ledger of U.S. foreign-policy alignment.",
-    "President: "+label+". As of: "+(P.asOf||"unknown")+".",
-    "Relationship states used: Core Ally, Aligned, Neutral, Strained, Adversarial.",
-    "Deltas (↑1 ↑ → ↓ ↓2) show change from the prior administration's baseline."
+    "You are an analytical assistant for the Foreign Policy Atlas, a ledger of U.S. foreign-policy alignment across administrations.",
+    "Loaded presidents: "+ids.map(function(id){return (window.PRESIDENTS[id].label||id)+" (as of "+(window.PRESIDENTS[id].asOf||"unknown")+")";}).join("; ")+".",
+    "Currently displayed on the map: "+((window.PRESIDENTS[CURRENT]||{}).label||CURRENT)+".",
+    "States: Core Ally | Aligned | Neutral | Strained | Adversarial.",
+    "Deltas (↑↑ ↑ → ↓ ↓↓): change from the prior administration's baseline."
   ];
+
   if(selName){
-    var k=keyFor(selName)||selName;
-    var d=DOSSIER[k];
-    if(d){
-      lines.push("--- Country dossier: "+k+" ---");
+    lines.push("","=== Country: "+selName+" — across all presidents ===");
+    ids.forEach(function(id){
+      var P=window.PRESIDENTS[id];
+      var dos=P.dossier||{}, outs=P.outcomes||{};
+      var k=_keyForIn(selName,dos);
+      var d=k?dos[k]:null;
+      lines.push("","-- "+(P.label||id)+" --");
+      if(!d){lines.push("No individual entry for this country under this administration."); return;}
       lines.push("State: "+(STATE_NAME[d.state]||d.state)+". Delta: "+(d.delta||"—")+".");
-      if(d.baseline && d.baseline!=="—") lines.push("Inherited baseline: "+d.baseline);
+      if(d.baseline&&d.baseline!=="—") lines.push("Inherited baseline: "+d.baseline);
       var pts=(d.points||[]).filter(function(p){return p!=="interp";});
       if(pts.length) lines.push("Evidence:\n"+pts.map(function(p){return "• "+p;}).join("\n"));
-      var o=OUTCOMES[k];
+      var o=outs[k];
       if(o&&o.best&&o.best!=="—")
-        lines.push("Outcome projections — Best: "+o.best+" | Base: "+o.base+" | Downside: "+o.down);
-    }
+        lines.push("Outcomes — Best: "+o.best+" | Base: "+o.base+" | Downside: "+o.down);
+    });
   } else if(selRegion){
-    var R=REGIONS[selRegion];
-    if(R){
-      lines.push("--- Region: "+selRegion+" ---");
-      lines.push("Tilt: "+R.tilt);
-      lines.push("Dynamics: "+R.dynamics);
-      lines.push("Flagship projects: "+R.projects.join("; "));
-      lines.push("US strategic goal: "+R.goal);
-      lines.push("Stakes: "+R.stakes);
-    }
-    var rc=allKeys.filter(function(k){return regionOf[k]===selRegion;});
-    if(rc.length){
-      lines.push("Countries in this region:");
-      rc.forEach(function(k){
-        var d=DOSSIER[k];
-        if(d) lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" (delta: "+(d.delta||"—")+")");
-      });
-    }
+    lines.push("","=== Region: "+selRegion+" — across all presidents ===");
+    ids.forEach(function(id){
+      var P=window.PRESIDENTS[id];
+      var dos=P.dossier||{}, regs=P.regions||{};
+      var R=regs[selRegion];
+      lines.push("","-- "+(P.label||id)+" --");
+      if(R){
+        lines.push("Tilt: "+R.tilt);
+        lines.push("Dynamics: "+R.dynamics);
+        if(R.projects&&R.projects.length) lines.push("Projects: "+R.projects.join("; "));
+        lines.push("US goal: "+R.goal);
+        lines.push("Stakes: "+R.stakes);
+      }
+      var rc=Object.keys(dos).filter(function(k){return dos[k]&&dos[k].region===selRegion&&dos[k].state!=="us"&&k!=="Venezuela_note";});
+      if(rc.length){
+        lines.push("Countries:");
+        rc.forEach(function(k){
+          var d=dos[k];
+          lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" (delta: "+(d.delta||"—")+")");
+        });
+      }
+    });
   } else {
-    lines.push("Full atlas ("+allKeys.length+" entries):");
-    allKeys.forEach(function(k){
-      var d=DOSSIER[k]; if(!d||d.state==="us") return;
-      lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" delta:"+(d.delta||"—")+" region:"+(d.region||"—"));
+    lines.push("","=== Full atlas — all presidents ===");
+    ids.forEach(function(id){
+      var P=window.PRESIDENTS[id];
+      var dos=P.dossier||{};
+      var keys=Object.keys(dos).filter(function(k){return dos[k]&&dos[k].state!=="us"&&k!=="Venezuela_note";});
+      lines.push("","-- "+(P.label||id)+" ("+keys.length+" entries) --");
+      var counts={};
+      keys.forEach(function(k){var s=dos[k].state; counts[s]=(counts[s]||0)+1;});
+      STATE_ORDER.forEach(function(s){if(counts[s])lines.push("  "+(STATE_NAME[s]||s)+": "+counts[s]);});
+      keys.forEach(function(k){
+        var d=dos[k];
+        lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" delta:"+(d.delta||"—")+" region:"+(d.region||"—"));
+      });
     });
   }
   return lines.join("\n");

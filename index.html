@@ -260,7 +260,9 @@ body{
 
 /* ---- Docked right-side panel ---- */
 .dock{
-  position:fixed;top:14px;right:14px;bottom:14px;z-index:18;
+  /* top:78px = clear of the floating top bar (which sits at top:14 with ~58px height).
+     Dropping below the top bar prevents the bar from covering the Dossier/Ask AI tab strip. */
+  position:fixed;top:78px;right:14px;bottom:14px;z-index:18;
   width:380px;max-width:calc(100vw - 28px);
   background:var(--panel);
   border:1px solid var(--line);

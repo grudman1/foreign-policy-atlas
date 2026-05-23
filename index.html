@@ -2,95 +2,116 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Foreign Policy Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <style>
+/* ============================================================
+   FOREIGN POLICY ATLAS — immersive map-first redesign
+   Map fills the viewport; all UI floats over it.
+   ============================================================ */
+
 :root{
-  --bg:#F5F4EF; --panel:#FFFFFF; --ink:#26251F; --ink2:#56544B; --ink3:#86847A;
-  --line:#E2E0D6; --line2:#EEEDE6; --chip:#F0EFE8;
-  /* state colors (the color of the map) */
+  /* Typography */
+  --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Warm editorial neutrals */
+  --bg:#F4EFE3;
+  --panel:#FFFFFF;
+  --panel-glass:rgba(255, 252, 244, 0.94);
+  --ink:#1F1E18;
+  --ink2:#4F4D44;
+  --ink3:#807E73;
+  --line:#E2DDCE;
+  --line2:#EDE9DC;
+  --chip:#F1EDE0;
+
+  /* Friendlier warm accent (replaces the cool blue) */
+  --accent:#B85C38;
+  --accent-soft:rgba(184, 92, 56, 0.12);
+
+  /* State colors — DO NOT recolor; this is the data encoding */
   --s-core:        #2F6F4F;
   --s-aligned:     #5f9618;
   --s-neutral:     #9b998f;
   --s-strained:    #B07D1A;
   --s-adversarial: #DD4140;
-  --s-us:          #5F5E5A;   /* the United States itself */
-  --accent:        #2F7FD0;   /* UI accent (links, focus, active tab) */
-  --nd:#E8E6DD; --stroke:#FFFFFF;
+  --s-us:          #5F5E5A;
+
+  --nd:#E8E2D0; --stroke:#FFFFFF;
   --good:#5f9618; --mid:#B07D1A; --bad:#C2403F;
-  --lbl:#56544B; --lblbg:#FFFFFF;
+  --lbl:#4F4D44; --lblbg:#FFFFFF;
   --arrow-fill:#FFFFFF; --arrow-outline:#161616;
+
+  /* Floating chrome shadows */
+  --shadow-float:0 6px 24px rgba(31, 30, 24, 0.10), 0 1px 3px rgba(31, 30, 24, 0.05);
+  --shadow-deep:0 18px 52px rgba(31, 30, 24, 0.16), 0 2px 6px rgba(31, 30, 24, 0.06);
+
+  --radius-card:14px;
+  --radius-pill:999px;
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --bg:#1B1B19; --panel:#252521; --ink:#ECEAE0; --ink2:#A8A69B; --ink3:#76746A;
-    --line:#37362F; --line2:#2E2E29; --chip:#2E2E28;
+    --bg:#15161A;
+    --panel:#22242A;
+    --panel-glass:rgba(34, 36, 42, 0.92);
+    --ink:#ECEAE0;
+    --ink2:#A8A69B;
+    --ink3:#7A786E;
+    --line:#34363D;
+    --line2:#2A2C32;
+    --chip:#2A2C32;
+    --accent:#E8907A;
+    --accent-soft:rgba(232, 144, 122, 0.18);
     --s-core:        #4F8C6A;
     --s-aligned:     #97C459;
     --s-neutral:     #6e6d66;
     --s-strained:    #D4A53A;
     --s-adversarial: #E97A79;
     --s-us:          #B4B2A9;
-    --accent:        #6FA8E5;
-    --nd:#323230; --stroke:#1c1c1a;
+    --nd:#2A2B30; --stroke:#1A1B1F;
     --good:#97C459; --mid:#D4A53A; --bad:#E97A79;
-    --lbl:#A8A69B; --lblbg:#252521;
+    --lbl:#A8A69B; --lblbg:#22242A;
     --arrow-fill:#FFFFFF; --arrow-outline:#161616;
+    --shadow-float:0 6px 24px rgba(0,0,0,0.40), 0 1px 3px rgba(0,0,0,0.20);
+    --shadow-deep:0 18px 52px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.25);
   }
 }
+
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1480px;margin:0 auto;padding:28px 22px 60px}
-header h1{font-size:23px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em}
-header p{margin:0;color:var(--ink2);font-size:13.5px}
-.legend{display:flex;flex-direction:column;gap:5px;margin:18px 0 6px}
-.legrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
-.legrow .leglabel{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
-  color:var(--ink3);font-weight:600;padding-right:4px;flex:none}
-.legend button{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);
-  background:none;border:0;padding:3px 5px;border-radius:7px;cursor:pointer;font-family:inherit}
-.legend button:hover{background:var(--line2)}
-.legend button.dim{opacity:.32}
-.sw{width:12px;height:12px;border-radius:3px;flex:none}
-/* one uniform arrow color across map, legend, and panel badges */
-.darr{font-weight:700;font-size:13px;line-height:1;display:inline-block;
-  min-width:18px;text-align:center;color:#111}
-@media (prefers-color-scheme:dark){.darr{color:#F2F0E8}}
-.hint{font-size:11.5px;color:var(--ink3);margin:0 0 12px}
-.layout{display:grid;grid-template-columns:2.1fr 1fr;gap:18px;margin-top:6px}
-@media (max-width:860px){.layout{grid-template-columns:1fr}}
-.mapcard,.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
-.mapcard{padding:10px}
-.insetcard{margin-top:14px}
-.insethead{display:flex;align-items:baseline;gap:9px;padding:2px 4px 8px}
-#insettitle{font-size:13px;font-weight:600;color:var(--ink)}
-.insethint{font-size:11px;color:var(--ink3)}
-#inset{min-height:150px}
-#inset svg{width:100%;height:auto;display:block;border-radius:8px}
-#inset .cty2{transition:opacity .15s}
-#inset .cty2.dim2{opacity:.3}
-#inset .cty2.sel2{stroke:var(--ink);stroke-width:1.1}
-#inset .lbl2{font-size:9px;font-weight:600;fill:var(--ink2);pointer-events:none;
-  paint-order:stroke;stroke:var(--lblbg);stroke-width:2.6px;stroke-linejoin:round}
-.insetempty{color:var(--ink3);font-size:12.5px;padding:30px 8px;text-align:center}
-#map svg{width:100%;height:auto;display:block;cursor:grab}
-#map svg:active{cursor:grabbing}
-#map svg .cty,
-#map svg .rgoutline,
-#map svg .rglead{vector-effect:non-scaling-stroke}
-.cty{cursor:pointer;transition:opacity .15s}
-.cty:hover{opacity:.74}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{
+  font-family:var(--font-body);
+  background:var(--bg);color:var(--ink);
+  font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  font-feature-settings:"cv11","ss01";
+}
+
+/* ---- Full-bleed map canvas ---- */
+.map-canvas{
+  position:fixed;inset:0;z-index:0;
+  background:var(--bg);
+  overflow:hidden;
+}
+.map-canvas svg{width:100%;height:100%;display:block;cursor:grab}
+.map-canvas svg:active{cursor:grabbing}
+.map-canvas .map-loading{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--ink3);font-size:13px;
+}
+.cty{cursor:pointer;transition:opacity .15s, stroke-width .15s}
+.cty:hover{opacity:.78}
 .cty.sel{stroke:var(--ink);stroke-width:1.4}
 .cty.dimmed{opacity:.26}
-.zoom-reset{position:absolute;top:14px;right:14px;z-index:5;
-  font-size:11.5px;background:var(--panel);border:1px solid var(--line);
-  border-radius:7px;padding:4px 10px;color:var(--ink2);cursor:pointer;
-  font-family:inherit;opacity:.88;transition:opacity .15s,border-color .15s,color .15s}
-.zoom-reset:hover{opacity:1;border-color:var(--accent);color:var(--ink)}
+.map-canvas svg .cty,
+.map-canvas svg .rgoutline,
+.map-canvas svg .rglead{vector-effect:non-scaling-stroke}
 .rgoutline{fill:none;stroke:var(--ink);stroke-width:1.7;pointer-events:none;
   stroke-linejoin:round;opacity:0;transition:opacity .2s}
 .rgoutline.show{opacity:.92}
@@ -98,162 +119,485 @@ header p{margin:0;color:var(--ink2);font-size:13.5px}
 .rghit{fill:var(--ink);opacity:0;transition:opacity .12s}
 .rglabel:hover .rghit{opacity:.07}
 .rglabel.active .rghit{opacity:.09}
-.rglabel text{font-size:12px;font-weight:700;fill:var(--lbl);
+.rglabel text{font-size:12px;font-weight:700;font-family:var(--font-body);fill:var(--lbl);
   paint-order:stroke;stroke:var(--lblbg);stroke-width:4.5px;stroke-linejoin:round;letter-spacing:.02em}
 .rglabel:hover text{fill:var(--accent)}
 .rglead{stroke:var(--ink3);stroke-width:0.8;fill:none;opacity:.55}
 .rglabel.active text{fill:var(--ink);font-size:13px}
 .rglabel.active .rgdot{fill:var(--ink)}
 .rgdot{fill:var(--ink3)}
-.panel{padding:0;min-height:420px;display:flex;flex-direction:column}
-.tabs{display:flex;border-bottom:1px solid var(--line)}
-.tabs button{flex:1;padding:10px 8px;font-size:12.5px;font-weight:500;background:none;border:0;
-  color:var(--ink3);cursor:pointer;font-family:inherit;border-bottom:2px solid transparent}
-.tabs button.on{color:var(--ink);border-bottom-color:var(--s-aligned)}
-.pinner{padding:17px 19px;overflow-y:auto}
-.ph{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+
+/* ---- Floating top bar ---- */
+.topbar{
+  position:fixed;top:14px;left:14px;right:14px;z-index:20;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:10px 16px;
+  background:var(--panel-glass);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border:1px solid var(--line);
+  border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-float);
+  animation:slideDown .5s cubic-bezier(.2,.7,.2,1) both;
+}
+.topbar-left{display:flex;align-items:baseline;gap:14px;min-width:0;flex:1 1 auto}
+.title{
+  font-family:var(--font-display);
+  font-weight:600;font-size:21px;letter-spacing:-0.01em;
+  margin:0;color:var(--ink);white-space:nowrap;
+}
+.blurb{font-size:12.5px;color:var(--ink3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:none}
+@media (min-width:1100px){ .blurb{display:inline} }
+.topbar-right{display:flex;align-items:center;gap:10px;flex:none}
+.presel-wrap{display:flex;align-items:center;gap:7px}
+.presel-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:600}
+.presel-wrap select{
+  font-family:inherit;font-size:13.2px;font-weight:500;
+  padding:6px 28px 6px 12px;border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:var(--panel) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='none' stroke='%23807E73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/></svg>") no-repeat right 10px center;
+  color:var(--ink);cursor:pointer;-webkit-appearance:none;appearance:none;
+}
+.presel-wrap select:focus{outline:none;border-color:var(--accent)}
+.asof{font-size:11.5px;color:var(--ink3);white-space:nowrap}
+.meth-btn{
+  font-family:inherit;font-size:12px;font-weight:500;
+  padding:6px 12px;border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:transparent;color:var(--ink2);cursor:pointer;
+  transition:border-color .15s, color .15s, background .15s;
+}
+.meth-btn:hover{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+.meth-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---- Floating left controls (search + legend card) ---- */
+.controls-left{
+  position:fixed;top:78px;left:14px;z-index:15;
+  display:flex;flex-direction:column;gap:10px;
+  width:300px;max-width:calc(100vw - 28px);
+  animation:slideIn .55s cubic-bezier(.2,.7,.2,1) both;
+  animation-delay:.08s;
+}
+.search-pill{
+  display:flex;align-items:center;gap:9px;
+  padding:0 14px;height:40px;
+  background:var(--panel-glass);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border:1px solid var(--line);
+  border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-float);
+  transition:border-color .15s;
+}
+.search-pill:focus-within{border-color:var(--accent)}
+.search-icon{width:15px;height:15px;color:var(--ink3);flex:none}
+.search{
+  flex:1;border:0;background:transparent;outline:none;
+  font:inherit;color:var(--ink);height:100%;padding:0;font-size:13.5px;
+}
+.search::placeholder{color:var(--ink3)}
+
+.legend-card{
+  background:var(--panel-glass);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-float);
+  overflow:hidden;
+}
+.legend-toggle{
+  display:flex;align-items:center;justify-content:space-between;width:100%;
+  padding:11px 14px;background:transparent;border:0;cursor:pointer;
+  font:inherit;font-size:12.5px;font-weight:600;color:var(--ink2);
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.legend-toggle-chev{font-size:14px;color:var(--ink3);transition:transform .2s;line-height:1}
+.legend-card.collapsed .legend-toggle-chev{transform:rotate(180deg)}
+.legend-body{padding:0 14px 13px;transition:max-height .25s ease, opacity .2s ease}
+.legend-card.collapsed .legend-body{display:none}
+.legend-hint{font-size:11.5px;color:var(--ink3);margin:0 0 8px;line-height:1.5}
+.legend{display:flex;flex-direction:column;gap:4px}
+.legrow{display:flex;flex-wrap:wrap;gap:3px 4px;align-items:center}
+.legrow .leglabel{font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink3);font-weight:600;width:100%;margin:6px 0 2px}
+.legend button{
+  display:inline-flex;align-items:center;gap:6px;font-size:11.8px;color:var(--ink2);
+  background:transparent;border:0;padding:3px 6px;border-radius:7px;cursor:pointer;font-family:inherit;
+  transition:background .12s;
+}
+.legend button:hover{background:var(--line2)}
+.legend button.dim{opacity:.36}
+.sw{width:11px;height:11px;border-radius:3px;flex:none}
+.count{display:inline-block;background:var(--line2);color:var(--ink2);font-size:10.5px;
+  padding:0 6px;border-radius:20px;margin-left:3px;vertical-align:middle;line-height:1.4}
+.darr{font-weight:700;font-size:12.5px;line-height:1;display:inline-block;
+  min-width:16px;text-align:center;color:var(--ink)}
+
+/* ---- Floating zoom controls ---- */
+.zoom-controls{
+  position:fixed;bottom:18px;left:14px;z-index:15;
+  display:flex;flex-direction:column;gap:6px;
+  background:var(--panel-glass);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  padding:4px;
+  box-shadow:var(--shadow-float);
+}
+.zbtn{
+  font-family:inherit;font-size:14px;font-weight:600;
+  width:36px;height:36px;
+  border:0;background:transparent;color:var(--ink2);
+  border-radius:8px;cursor:pointer;
+  transition:background .12s, color .12s;
+  display:flex;align-items:center;justify-content:center;
+}
+.zbtn:hover{background:var(--line2);color:var(--ink)}
+.zbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.zreset{font-size:10.5px;font-weight:600;width:auto;padding:0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+
+/* ---- Docked right-side panel ---- */
+.dock{
+  position:fixed;top:14px;right:14px;bottom:14px;z-index:18;
+  width:380px;max-width:calc(100vw - 28px);
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-deep);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  animation:slideInRight .6s cubic-bezier(.2,.7,.2,1) both;
+  animation-delay:.12s;
+}
+.dock-tabs{
+  display:flex;align-items:center;gap:2px;
+  padding:8px 8px 0 8px;
+  border-bottom:1px solid var(--line);
+}
+.dock-tab{
+  flex:0 0 auto;padding:9px 16px;font-size:13px;font-weight:500;font-family:inherit;
+  background:transparent;border:0;color:var(--ink3);cursor:pointer;border-radius:9px 9px 0 0;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color .15s, background .15s, border-color .15s;
+}
+.dock-tab:hover{color:var(--ink2);background:var(--line2)}
+.dock-tab.on{color:var(--ink);border-bottom-color:var(--accent);background:transparent}
+.dock-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.dock-overview{
+  margin-left:auto;margin-right:8px;margin-bottom:6px;
+  font-family:inherit;font-size:11.5px;font-weight:500;
+  padding:5px 11px;border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:transparent;color:var(--ink2);cursor:pointer;
+  transition:border-color .15s, color .15s;
+}
+.dock-overview:hover{border-color:var(--accent);color:var(--ink)}
+.dock-body{flex:1;min-height:0;position:relative;overflow:hidden}
+.dock-pane{
+  position:absolute;inset:0;
+  overflow-y:auto;overflow-x:hidden;
+  opacity:0;pointer-events:none;
+  transition:opacity .22s ease;
+}
+.dock-pane.on{opacity:1;pointer-events:auto}
+.pinner{padding:18px 20px 22px}
+.aspane{padding:16px 18px 20px}
+
+/* ---- Dossier content (preserves every credibility signal) ---- */
+.ph{display:flex;align-items:center;gap:9px;margin-bottom:4px}
 .ph .sw{width:14px;height:14px}
-.ph h2{font-size:18px;font-weight:600;margin:0;letter-spacing:-0.01em}
-.badges{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 3px}
+.ph h2{font-family:var(--font-display);font-size:21px;font-weight:600;margin:0;letter-spacing:-0.01em;line-height:1.2}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;
-  padding:2px 9px;border-radius:20px;background:var(--chip);color:var(--ink2)}
+  padding:3px 10px;border-radius:20px;background:var(--chip);color:var(--ink2)}
 .badge .sw{width:10px;height:10px}
 .badge .darr{font-size:12px;min-width:auto}
 .badge b{color:var(--ink);font-weight:600}
-.baseline{margin:9px 0 12px;padding:9px 11px;background:var(--chip);
-  border-radius:8px;font-size:12.6px;line-height:1.5;color:var(--ink2)}
-.baseline .blab{display:block;font-size:10px;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:3px}
-.reg{font-size:11.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;cursor:pointer}
+.reg{font-size:11.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;
+  margin:10px 0 12px;cursor:pointer;transition:color .12s}
 .reg:hover{color:var(--accent);text-decoration:underline}
+.baseline{margin:10px 0 13px;padding:10px 12px;background:var(--chip);
+  border-radius:10px;font-size:12.7px;line-height:1.55;color:var(--ink2)}
+.baseline .blab{display:block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:4px}
 ul.pts{margin:0;padding:0;list-style:none}
-ul.pts li{position:relative;padding:0 0 11px 16px;font-size:13.4px;line-height:1.5}
+ul.pts li{position:relative;padding:0 0 11px 17px;font-size:13.5px;line-height:1.55}
 ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;background:var(--dotc)}
-.empty{color:var(--ink3);font-size:13.5px;padding-top:10px}
 .interp{margin-top:4px;font-size:11.5px;color:var(--ink3);font-style:italic;
-  border-top:1px dashed var(--line);padding-top:9px}
-.search{width:100%;padding:8px 11px;font-size:13px;border:1px solid var(--line);border-radius:9px;
-  background:var(--bg);color:var(--ink);font-family:inherit}
-.search:focus{outline:none;border-color:var(--accent)}
-.searchrow{padding:13px 19px 0}
-.outcome{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}
-.outcome h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 9px}
-.ocell{display:flex;gap:9px;margin-bottom:9px;font-size:12.8px;line-height:1.45}
+  border-top:1px dashed var(--line);padding-top:10px}
+.outcome{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.outcome h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 10px}
+.ocell{display:flex;gap:9px;margin-bottom:9px;font-size:12.9px;line-height:1.5}
 .otag{flex:none;width:62px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-top:1px}
 .otag.g{color:var(--good)} .otag.m{color:var(--mid)} .otag.b{color:var(--bad)}
-.sech{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:16px 0 7px}
-.rgoal{font-size:13.2px;background:var(--chip);border-radius:9px;padding:10px 12px;margin:4px 0 2px}
-.proj{position:relative;padding:0 0 8px 15px;font-size:13px;line-height:1.45}
+.sech{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:18px 0 8px}
+.rgoal{font-size:13.2px;background:var(--chip);border-radius:10px;padding:11px 13px;margin:4px 0 2px;line-height:1.55}
+.proj{position:relative;padding:0 0 8px 15px;font-size:13px;line-height:1.5}
 .proj:before{content:"";position:absolute;left:0;top:6px;width:5px;height:5px;border-radius:1px;background:var(--s-aligned)}
-.tiltbadge{display:inline-block;font-size:11.5px;padding:2px 10px;border-radius:20px;
+.tiltbadge{display:inline-block;font-size:11.5px;padding:3px 11px;border-radius:20px;
   background:var(--chip);color:var(--ink);font-weight:500;margin-bottom:10px}
-.foot{margin-top:20px;font-size:11.5px;color:var(--ink3);line-height:1.6;
-  border-top:1px solid var(--line);padding-top:14px}
-.count{display:inline-block;background:var(--line2);color:var(--ink2);font-size:11px;
-  padding:1px 7px;border-radius:20px;margin-left:6px;vertical-align:middle}
-.reglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.reglist button{font-size:11.5px;padding:4px 9px;border-radius:20px;border:1px solid var(--line);
-  background:var(--bg);color:var(--ink2);cursor:pointer;font-family:inherit}
-.reglist button:hover{border-color:var(--accent);color:var(--ink)}
-.backrow{margin-bottom:10px}
+.backrow{margin-bottom:11px}
 .backrow button{font-size:11.5px;background:none;border:0;color:var(--accent);cursor:pointer;
   font-family:inherit;padding:0}
-.controls{display:flex;align-items:center;gap:11px;margin:16px 0 2px;flex-wrap:wrap}
-.controls label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
-.controls select{font-family:inherit;font-size:13.5px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);cursor:pointer}
-.controls select:focus{outline:none;border-color:var(--accent)}
-.asof{font-size:11.5px;color:var(--ink3)}
-.analysisSection{margin-top:18px;padding:0}
-.analysisHeader{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none;border-radius:14px}
-.analysisHeader:hover{background:var(--line2)}
-.analysisSection.aopen .analysisHeader{border-radius:14px 14px 0 0}
-.achevron{font-size:15px;color:var(--ink3);transition:transform .18s;flex:none;line-height:1}
-.analysisSection.aopen .achevron{transform:rotate(180deg)}
-.analysisbody{display:none;border-top:1px solid var(--line);padding:14px 18px 18px}
-.analysisSection.aopen .analysisbody{display:block}
-.abtnrow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
-.abtn{font-size:12.5px;padding:6px 13px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink2);cursor:pointer;font-family:inherit}
-.abtn:hover:not(:disabled){border-color:var(--s-aligned);color:var(--ink)}
-.abtn.asel{border-color:var(--s-aligned);color:var(--s-aligned)}
+.backrow button:hover{text-decoration:underline}
+
+/* ---- Friendly empty state ---- */
+.empty-state{padding:20px 4px 8px}
+.empty-h{
+  font-family:var(--font-display);font-size:22px;font-weight:600;letter-spacing:-0.01em;
+  margin:0 0 7px;color:var(--ink);line-height:1.25;
+}
+.empty-state .empty-lead{font-size:13.6px;color:var(--ink2);margin:0 0 16px;line-height:1.55}
+.empty-sub{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:600;margin:0 0 8px}
+.reglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.reglist button{
+  font-family:inherit;font-size:12px;padding:5px 11px;border-radius:var(--radius-pill);
+  border:1px solid var(--line);background:transparent;color:var(--ink2);cursor:pointer;
+  transition:border-color .12s, color .12s, background .12s;
+}
+.reglist button:hover{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+
+/* ---- Ask AI pane ---- */
+.aspane-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.aspane-title{
+  font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-0.01em;
+  margin:0;color:var(--ink);
+}
+.acontext{font-size:11.8px;color:var(--ink3)}
+.acontext b{color:var(--ink2);font-weight:500}
+.abtnrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+.abtn{
+  font-size:12.5px;padding:6px 12px;border-radius:9px;border:1px solid var(--line);
+  background:transparent;color:var(--ink2);cursor:pointer;font-family:inherit;
+  transition:border-color .12s, color .12s, background .12s;
+}
+.abtn:hover:not(:disabled){border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+.abtn.asel{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .abtn:disabled{opacity:.5;cursor:default}
 .acustomrow{display:flex;gap:7px;margin-bottom:14px}
-.acustomrow .search{flex:1}
-.asend{font-size:12.5px;padding:7px 14px;border-radius:9px;border:0;background:var(--s-aligned);color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap;flex:none}
-.asend:hover:not(:disabled){opacity:.85}
+.acustomrow .ainput{
+  flex:1;font:inherit;font-size:13px;
+  padding:8px 12px;border:1px solid var(--line);border-radius:9px;
+  background:var(--bg);color:var(--ink);
+}
+.acustomrow .ainput:focus{outline:none;border-color:var(--accent)}
+.asend{
+  font-family:inherit;font-size:12.5px;padding:8px 15px;border-radius:9px;border:0;
+  background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap;flex:none;font-weight:500;
+  transition:opacity .12s;
+}
+.asend:hover:not(:disabled){opacity:.88}
 .asend:disabled{opacity:.5;cursor:default}
-.aresult{font-size:13.4px;line-height:1.62;color:var(--ink)}
+.aresult{font-size:13.4px;line-height:1.65;color:var(--ink)}
 .aresult p{margin:0 0 11px}
 .aresult p:last-of-type{margin-bottom:0}
+.aresult h4{font-family:var(--font-display);font-size:14.5px;font-weight:600;margin:14px 0 7px}
+.aresult ul{margin:0 0 11px;padding-left:18px}
+.aresult li{margin-bottom:4px}
 .aresult .aload{color:var(--ink3);font-style:italic}
-.aclear{display:block;margin-top:10px;font-size:11.5px;background:none;border:0;color:var(--ink3);cursor:pointer;font-family:inherit;padding:0}
+.aclear{
+  display:block;margin-top:12px;font-size:11.5px;background:none;border:0;
+  color:var(--ink3);cursor:pointer;font-family:inherit;padding:0;
+}
 .aclear:hover{color:var(--ink)}
-.acontext{font-size:12px;color:var(--ink3);margin-left:10px;margin-right:auto}
-.acontext b{color:var(--ink2);font-weight:500}
+
+/* ---- Methodology modal ---- */
+.modal[hidden]{display:none}
+.modal{position:fixed;inset:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-backdrop{position:absolute;inset:0;background:rgba(15,14,10,0.42);
+  cursor:pointer;animation:fadeIn .2s ease both}
+.modal-panel{
+  position:relative;z-index:1;
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:18px;
+  padding:24px 28px 26px;
+  max-width:680px;width:100%;
+  max-height:85vh;overflow-y:auto;
+  box-shadow:var(--shadow-deep);
+  animation:popIn .25s cubic-bezier(.2,.8,.2,1.05) both;
+}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:8px}
+.modal-head h2{
+  font-family:var(--font-display);font-size:22px;font-weight:600;margin:0;letter-spacing:-0.01em;
+}
+.modal-close{
+  font-family:inherit;font-size:22px;line-height:1;
+  width:34px;height:34px;border:0;background:transparent;color:var(--ink3);
+  border-radius:8px;cursor:pointer;
+}
+.modal-close:hover{background:var(--line2);color:var(--ink)}
+.modal-body{font-size:13px;color:var(--ink2);line-height:1.65;padding-top:6px}
+
+/* ---- Animations ---- */
+@keyframes slideDown{from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:none}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:none}}
+@keyframes slideInRight{from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0} to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.98)} to{opacity:1;transform:none}}
+
+/* ---- Reduced motion: blanket override ---- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:0.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:0.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
+/* ---- Mobile: bottom sheet ---- */
+@media (max-width:720px){
+  .topbar{
+    left:8px;right:8px;top:8px;padding:8px 14px;gap:8px;border-radius:18px;
+  }
+  .title{font-size:17px}
+  .topbar-right .presel-label{display:none}
+  .topbar-right .asof{display:none}
+
+  .controls-left{
+    top:64px;left:8px;right:8px;width:auto;max-width:none;
+    flex-direction:row;align-items:flex-start;gap:8px;
+  }
+  .search-pill{flex:1;min-width:0}
+  .legend-card{width:auto;max-width:none;flex:none}
+  .legend-card .legend-toggle{padding:8px 12px;font-size:11.5px}
+
+  .zoom-controls{bottom:172px;left:8px;flex-direction:row;padding:3px}
+  .zoom-controls .zbtn{width:32px;height:32px;font-size:13px}
+  .zoom-controls .zreset{display:none}
+
+  /* The dock becomes a bottom sheet that peeks */
+  .dock{
+    top:auto;left:0;right:0;bottom:0;
+    width:100%;max-width:100%;
+    border-radius:20px 20px 0 0;
+    border:1px solid var(--line);border-bottom:0;
+    height:62vh;
+    transform:translateY(calc(62vh - 124px));
+    transition:transform .35s cubic-bezier(.2,.8,.2,1);
+  }
+  .dock.sheet-open{transform:translateY(0)}
+  .dock-handle{
+    display:flex;align-items:center;justify-content:center;
+    width:100%;padding:8px 0 4px;
+    background:transparent;border:0;cursor:pointer;
+  }
+  .dock-handle span{
+    display:block;width:42px;height:4px;border-radius:4px;
+    background:var(--ink3);opacity:.45;
+  }
+  .dock-tabs{padding-top:0}
+}
+/* Desktop: hide the handle entirely (sheet behavior is mobile-only) */
+@media (min-width:721px){
+  .dock-handle{display:none}
+}
+
+/* ---- Hide the page-level scrollbars on mobile WebKit when the sheet animates ---- */
+@media (max-width:720px){
+  body{overscroll-behavior:none}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <h1 id="hl">Foreign Policy Atlas</h1>
-  <p id="blurb"></p>
+
+<!-- Map fills the viewport -->
+<div id="map" class="map-canvas" role="img" aria-label="World map of US foreign-policy alignment">
+  <div class="map-loading">Loading map&hellip;</div>
+</div>
+
+<!-- Floating top bar -->
+<header class="topbar" role="banner">
+  <div class="topbar-left">
+    <h1 class="title" id="hl">Foreign Policy Atlas</h1>
+    <span id="blurb" class="blurb"></span>
+  </div>
+  <div class="topbar-right">
+    <label class="presel-wrap" for="presel">
+      <span class="presel-label">President</span>
+      <select id="presel" aria-label="Select president"></select>
+    </label>
+    <span class="asof" id="asof"></span>
+    <button class="meth-btn" type="button" onclick="openMethodology()">Methodology</button>
+  </div>
 </header>
 
-<div class="controls">
-  <label for="presel">President</label>
-  <select id="presel"></select>
-  <span class="asof" id="asof"></span>
+<!-- Floating left column: search + filter/legend -->
+<aside class="controls-left" aria-label="Search and filters">
+  <div class="search-pill">
+    <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <line x1="10.3" y1="10.3" x2="14" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <input class="search" id="search" placeholder="Search a country&hellip;" autocomplete="off" aria-label="Search a country">
+  </div>
+  <div class="legend-card" id="legendCard">
+    <button class="legend-toggle" id="legendToggle" type="button"
+            onclick="toggleLegend()" aria-expanded="true" aria-controls="legendBody">
+      <span class="legend-toggle-label">Filter</span>
+      <span class="legend-toggle-chev" aria-hidden="true">&#8964;</span>
+    </button>
+    <div class="legend-body" id="legendBody">
+      <p class="legend-hint">Color = today's state. Arrow = how it moved vs. the prior administration.</p>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Floating zoom controls -->
+<div class="zoom-controls" role="group" aria-label="Map zoom">
+  <button class="zbtn" type="button" onclick="zoomBy(1.4)" aria-label="Zoom in" title="Zoom in">&#43;</button>
+  <button class="zbtn" type="button" onclick="zoomBy(1/1.4)" aria-label="Zoom out" title="Zoom out">&minus;</button>
+  <button class="zbtn zreset" type="button" onclick="resetMapZoom()" title="Reset map view">Reset</button>
 </div>
 
-<div class="legend" id="legend"></div>
-<p class="hint">Color shows the state of the relationship today; the arrow on each country shows what <i>this</i> president changed from the prior baseline. Click a country for its dossier &amp; outcomes &middot; click a region label on the map (or the Region tab) to outline that region &middot; legend chips filter the map.</p>
+<!-- Right-side dock: Dossier | Ask AI tabs -->
+<aside class="dock" id="dock" aria-label="Selection panel">
+  <button class="dock-handle" type="button" onclick="toggleSheet()" aria-label="Expand or collapse panel"><span></span></button>
+  <div class="dock-tabs" role="tablist">
+    <button id="tabDossier" class="dock-tab on" role="tab" aria-selected="true"
+            aria-controls="paneDossier" onclick="setTab('dossier')">Dossier</button>
+    <button id="tabAskAI" class="dock-tab" role="tab" aria-selected="false"
+            aria-controls="paneAskAI" onclick="setTab('askai')">Ask AI</button>
+    <button class="dock-overview" type="button" onclick="goOverview()" title="Clear selection">Overview</button>
+  </div>
+  <div class="dock-body">
+    <div class="dock-pane on" id="paneDossier" role="tabpanel" aria-labelledby="tabDossier">
+      <div class="pinner" id="pbody"></div>
+    </div>
+    <div class="dock-pane" id="paneAskAI" role="tabpanel" aria-labelledby="tabAskAI">
+      <div id="analysisSection" class="aspane aopen">
+        <div class="aspane-head">
+          <h3 class="aspane-title">Ask AI</h3>
+          <span id="acontext" class="acontext"></span>
+        </div>
+        <div class="abtnrow">
+          <button class="abtn" id="abtn0" type="button" onclick="runAnalysis(0)">Regional trends</button>
+          <button class="abtn" id="abtn1" type="button" onclick="runAnalysis(1)">Key risks</button>
+          <button class="abtn" id="abtn2" type="button" onclick="runAnalysis(2)">Historical context</button>
+        </div>
+        <div class="acustomrow">
+          <input class="ainput" id="acustomq" placeholder="Ask your own question about this foreign policy posture&hellip;" autocomplete="off">
+          <button class="asend" type="button" onclick="runCustomQ()">Ask</button>
+        </div>
+        <div class="aresult" id="aresult"></div>
+      </div>
+    </div>
+  </div>
+</aside>
 
-<div class="layout">
-  <div>
-    <div class="mapcard" style="position:relative">
-      <button class="zoom-reset" onclick="resetMapZoom()" title="Reset map view">Reset view</button>
-      <div id="map">Loading map&hellip;</div>
-    </div>
-    <div class="mapcard insetcard" id="insetcard">
-      <div class="insethead"><span id="insettitle">Detail view</span>
-        <span class="insethint" id="insethint">select a country or region to zoom in</span></div>
-      <div id="inset"></div>
-    </div>
+<!-- Methodology modal (holds the foot/caveats content) -->
+<div class="modal" id="methodologyModal" hidden role="dialog" aria-modal="true" aria-labelledby="methodologyTitle">
+  <div class="modal-backdrop" onclick="closeMethodology()"></div>
+  <div class="modal-panel">
+    <header class="modal-head">
+      <h2 id="methodologyTitle">Method &amp; caveats</h2>
+      <button class="modal-close" type="button" onclick="closeMethodology()" aria-label="Close">&times;</button>
+    </header>
+    <div id="foot" class="modal-body"></div>
   </div>
-  <div class="panel">
-    <div class="tabs">
-      <button id="tabC" class="on" onclick="setTab('country')">Country</button>
-      <button id="tabR" onclick="setTab('region')">Region</button>
-    </div>
-    <div class="searchrow" id="searchrow">
-      <input class="search" id="search" placeholder="Search a country..." autocomplete="off">
-    </div>
-    <div class="pinner" id="pbody">
-      <div class="empty">Click a country on the map &mdash; or search above &mdash; for the deals, events, reasoning, and projected outcomes behind its classification.</div>
-    </div>
-  </div>
-</div>
-
-<div class="mapcard analysisSection" id="analysisSection">
-  <div class="analysisHeader" onclick="toggleAnalysis()" tabindex="0" role="button" aria-expanded="false" id="analysisHeader">
-    <span style="font-size:13px;font-weight:600;color:var(--ink)">AI Analysis</span>
-    <span id="acontext" class="acontext"></span>
-    <span class="achevron">&#8964;</span>
-  </div>
-  <div class="analysisbody" id="analysisbody">
-    <div class="abtnrow">
-      <button class="abtn" id="abtn0" onclick="runAnalysis(0)">Regional trends</button>
-      <button class="abtn" id="abtn1" onclick="runAnalysis(1)">Key risks</button>
-      <button class="abtn" id="abtn2" onclick="runAnalysis(2)">Historical context</button>
-    </div>
-    <div class="acustomrow">
-      <input class="search" id="acustomq" placeholder="Ask your own question about this foreign policy posture…" autocomplete="off">
-      <button class="asend" onclick="runCustomQ()">Ask</button>
-    </div>
-    <div class="aresult" id="aresult"></div>
-  </div>
-</div>
-
-<div class="foot" id="foot"></div>
 </div>
 
 <!-- Data: one file per president. Each registers itself on window.PRESIDENTS. -->

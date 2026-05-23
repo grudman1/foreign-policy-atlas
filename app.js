@@ -147,22 +147,41 @@ function buildLegend(){
   L.appendChild(rowD);
 }
 
+/* Tabs: 'dossier' | 'askai'. Selecting a country/region brings Dossier
+   forward; clicking the Ask AI tab shows the chat UI. The country/region
+   distinction has moved into the selection state (selName/selRegion). */
 function setTab(t){
+  if(t!=="dossier" && t!=="askai") t="dossier";
   tab=t;
-  document.getElementById("tabC").classList.toggle("on",t==="country");
-  document.getElementById("tabR").classList.toggle("on",t==="region");
-  document.getElementById("searchrow").style.display=(t==="country")?"block":"none";
-  if(t==="region"){ if(selRegion) showRegion(selRegion); else showRegionList(); }
-  else { selRegion=null; paint(); paintDeltas(); if(selName) showCountry(selName); else clearPanel(); }
+  var tD=document.getElementById("tabDossier");
+  var tA=document.getElementById("tabAskAI");
+  var pD=document.getElementById("paneDossier");
+  var pA=document.getElementById("paneAskAI");
+  if(tD){tD.classList.toggle("on",t==="dossier");tD.setAttribute("aria-selected",t==="dossier"?"true":"false");}
+  if(tA){tA.classList.toggle("on",t==="askai");  tA.setAttribute("aria-selected",t==="askai"?"true":"false");}
+  if(pD) pD.classList.toggle("on",t==="dossier");
+  if(pA) pA.classList.toggle("on",t==="askai");
+  if(t==="askai") refreshAnalysisBtns();
+  // On mobile, switching tabs implies expanding the bottom sheet.
+  openSheet();
 }
-function setTabSilent(t){
-  tab=t;
-  document.getElementById("tabC").classList.toggle("on",t==="country");
-  document.getElementById("tabR").classList.toggle("on",t==="region");
-  document.getElementById("searchrow").style.display=(t==="country")?"block":"none";
+function setTabSilent(_t){
+  // Called from showCountry/showRegion when a selection is made. Always
+  // bring the Dossier tab forward so the user sees the dossier they opened.
+  setTab("dossier");
 }
 function clearPanel(){
-  document.getElementById("pbody").innerHTML='<div class="empty">Click a country on the map or search above.</div>';
+  var pb=document.getElementById("pbody"); if(!pb) return;
+  var html='<div class="empty-state">'+
+    '<h2 class="empty-h">Tap any country</h2>'+
+    '<p class="empty-lead">to see how its alignment shifted under this president &mdash; or jump straight into a region below.</p>'+
+    '<p class="empty-sub">Regions</p>'+
+    '<div class="reglist">';
+  Object.keys(REGIONS).forEach(function(r){
+    html+='<button type="button" onclick="showRegion(\''+r.replace(/'/g,"\\'")+'\')">'+r+'</button>';
+  });
+  html+='</div></div>';
+  pb.innerHTML=html;
   refreshAnalysisBtns();
 }
 
@@ -180,8 +199,8 @@ function showCountry(name){
   selRegion=null;
   var k=keyFor(name)||name, d=DOSSIER[k], pb=document.getElementById("pbody");
   if(!d){
-    pb.innerHTML='<div class="empty"><b>'+name+'</b> is not individually classified in this ledger '+
-      '(shown neutral on the map). Most unclassified states were not part of a distinct Trump-era initiative through May 2026.</div>';
+    pb.innerHTML='<div class="empty-state"><h2 class="empty-h">'+name+'</h2>'+
+      '<p class="empty-lead">isn\'t individually classified in this ledger (shown neutral on the map). Most unclassified states were not part of a distinct Trump-era initiative through May 2026.</p></div>';
     selName=null; paint(); paintDeltas(); return;
   }
   selName=name; refreshAnalysisBtns();
@@ -225,25 +244,15 @@ function showCountry(name){
 
   pb.innerHTML=html;
   paint(); paintDeltas();
-  drawInset("country",k);
-}
-
-function showRegionList(){
-  var pb=document.getElementById("pbody");
-  var html='<div class="empty" style="padding-top:2px;margin-bottom:6px">Pick a region — or click a region label on the map — for its dynamics, flagship projects, US goal, and long-term stakes.</div><div class="reglist">';
-  Object.keys(REGIONS).forEach(function(r){
-    html+='<button onclick="showRegion(\''+r.replace(/'/g,"\\'")+'\')">'+r+'</button>';
-  });
-  html+='</div>';
-  pb.innerHTML=html;
+  var fF=FEATFORKEY&&FEATFORKEY(k); if(fF) flyTo(fF);
 }
 
 function showRegion(r){
   setTabSilent("region");
   var R=REGIONS[r], pb=document.getElementById("pbody");
-  if(!R){showRegionList();return;}
+  if(!R){ goOverview(); return; }
   selRegion=r; selName=null; refreshAnalysisBtns();
-  var html='<div class="backrow"><button onclick="backToRegions()">&lsaquo; all regions</button></div>'+
+  var html='<div class="backrow"><button type="button" onclick="goOverview()">&lsaquo; overview</button></div>'+
     '<div class="ph"><h2>'+r+'</h2></div>'+
     '<div class="tiltbadge">'+R.tilt+'</div>'+
     '<div class="sech">Regional dynamics</div><p style="margin:0;font-size:13.4px">'+R.dynamics+'</p>'+
@@ -254,9 +263,12 @@ function showRegion(r){
     '<p style="margin:0;font-size:13.4px">'+R.stakes+'</p>';
   pb.innerHTML=html;
   paint(); paintDeltas();
-  drawInset("region",r);
+  var rf=REGIONFEATS&&REGIONFEATS[r];
+  if(rf && rf.length) flyTo({type:"FeatureCollection",features:rf});
 }
-function backToRegions(){ selRegion=null; showRegionList(); paint(); paintDeltas(); refreshAnalysisBtns(); }
+/* Legacy entry points kept for back-compat with any data-side or external callers. */
+function showRegionList(){ goOverview(); }
+function backToRegions(){ goOverview(); }
 
 
 /* ---- map painting (state-based) ---- */
@@ -381,96 +393,31 @@ function paintDeltas(){
   });
 }
 
-function drawInset(mode, key){
-  var host=document.getElementById("inset");
-  var titleEl=document.getElementById("insettitle");
-  var hintEl=document.getElementById("insethint");
-  if(!ALLFEATS){host.innerHTML='<div class="insetempty">Map still loading…</div>';return;}
-
-  // determine the focus features and which to highlight
-  var focusFeats=[], hi={};
-  if(mode==="country"){
-    var f=FEATFORKEY(key); if(f){focusFeats=[f];hi[key]=1;}
-    titleEl.textContent="Detail — "+key;
-    hintEl.textContent="zoomed to the selected country";
-  } else if(mode==="region"){
-    focusFeats=(REGIONFEATS[key]||[]).slice();
-    focusFeats.forEach(function(ff){hi[ff.properties.name]=1;});
-    titleEl.textContent="Detail — "+key;
-    hintEl.textContent="zoomed to the selected region";
-  }
-  if(!focusFeats.length){
-    host.innerHTML='<div class="insetempty">No map geometry available for this selection.</div>';
-    return;
-  }
-
-  // bounding box of focus, with padding, then include neighbours for context
-  var fc={type:"FeatureCollection",features:focusFeats};
-  var W=720,H=300;
-  var padProj=d3.geoMercator().fitExtent([[24,24],[W-24,H-24]],fc);
-  var b=d3.geoPath(padProj).bounds(fc);
-  var mx=(b[1][0]-b[0][0])*0.55+30, my=(b[1][1]-b[0][1])*0.55+30;
-  var win=[[b[0][0]-mx,b[0][1]-my],[b[1][0]+mx,b[1][1]+my]];
-  var context=ALLFEATS.filter(function(ft){
-    var c=padProj(d3.geoCentroid(ft));
-    if(!c||isNaN(c[0]))return false;
-    return c[0]>=win[0][0]&&c[0]<=win[1][0]&&c[1]>=win[0][1]&&c[1]<=win[1][1];
-  });
-  focusFeats.forEach(function(ff){ if(context.indexOf(ff)<0)context.push(ff); });
-
-  var path2=d3.geoPath(padProj);
-  host.innerHTML="";
-  var svg2=d3.select(host).append("svg").attr("viewBox","0 0 "+W+" "+H)
-    .attr("role","img").attr("aria-label","Zoomed detail map of "+key);
-  svg2.append("rect").attr("width",W).attr("height",H).attr("fill","transparent");
-
-  svg2.append("g").selectAll("path").data(context).join("path")
-    .attr("class","cty2")
-    .attr("d",path2)
-    .attr("stroke",cssv("--stroke")).attr("stroke-width",0.6)
-    .attr("fill",function(d){
-      var k=keyFor(d.properties.name);
-      var entry=k?DOSSIER[k]:null;
-      var s=entry?entry.state:null;
-      return (!s) ? cssv("--nd") : cssv(STATE_COLOR[s]||"--s-neutral");
-    })
-    .classed("dim2",function(d){return !hi[d.properties.name];})
-    .classed("sel2",function(d){return !!hi[d.properties.name];})
-    .style("cursor","pointer")
-    .on("click",function(e,d){showCountry(d.properties.name);})
-    .append("title").text(function(d){return d.properties.name;});
-
-  // delta marks inside the inset — same soft arrow style as the main map,
-  // but with a larger ceiling because the inset is zoomed.
-  var gD2 = svg2.append("g");
-  focusFeats.forEach(function(ff){
-    var k2=keyFor(ff.properties.name);
-    var d2=k2?DOSSIER[k2]:null;
-    if(!d2 || !d2.delta || d2.delta==="—" || d2.state==="us") return;
-    var pos = bestLabelTarget(ff, path2);
-    if(!pos) return;
-    var m = Math.min(pos.w, pos.h);
-    if(m < 5) return;
-    var size = Math.min(m * 0.34, 40);   // 40 = inset ceiling (zoomed view)
-    appendDeltaMark(gD2, pos.cx, pos.cy, d2.delta, size);
-  });
-
-  // labels for highlighted features (only if reasonably large on screen)
-  svg2.append("g").selectAll("text.lbl2").data(focusFeats).join("text")
-    .attr("class","lbl2")
-    .attr("transform",function(d){var c=path2.centroid(d); return "translate("+(c[0])+","+(c[1]+12)+")";})
-    .attr("text-anchor","middle").attr("dy","0.32em")
-    .each(function(d){
-      var bb=path2.bounds(d);
-      var w=bb[1][0]-bb[0][0], h=bb[1][1]-bb[0][1];
-      if(w>34&&h>20) d3.select(this).text(d.properties.name);
-    });
+/* ---- fly-to (replaces the old inset detail map) ----------------------
+   Animates the main map's existing zoom transform to frame the given
+   feature/collection. Reuses the 960×480 projection space so RLAYOUT,
+   delta arrow sizing, and the zoom translateExtent all keep working. */
+function prefersReducedMotion(){
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
-function clearInset(){
-  var host=document.getElementById("inset");
-  document.getElementById("insettitle").textContent="Detail view";
-  document.getElementById("insethint").textContent="select a country or region to zoom in";
-  host.innerHTML='<div class="insetempty">Click any country or region to see a zoomed-in detail map here.</div>';
+function flyTo(featureOrCollection){
+  if(!featureOrCollection || !geoPath || !_mapZoom || !svgSel) return;
+  var b = geoPath.bounds(featureOrCollection);
+  if(!b || !isFinite(b[0][0]) || !isFinite(b[1][0])) return;
+  var dx = b[1][0]-b[0][0], dy = b[1][1]-b[0][1];
+  var cx = (b[0][0]+b[1][0])/2, cy = (b[0][1]+b[1][1])/2;
+  // 0.45 = "comfortable" fit: leaves room around the selection, not edge-tight.
+  var scale = Math.max(1, Math.min(8, 0.45 / Math.max(dx/960, dy/480)));
+  var t = d3.zoomIdentity
+    .translate(960/2 - scale*cx, 480/2 - scale*cy)
+    .scale(scale);
+  var dur = prefersReducedMotion() ? 0 : 700;
+  svgSel.transition().duration(dur).call(_mapZoom.transform, t);
+}
+function zoomBy(factor){
+  if(!svgSel || !_mapZoom) return;
+  var dur = prefersReducedMotion() ? 0 : 220;
+  svgSel.transition().duration(dur).call(_mapZoom.scaleBy, factor);
 }
 
 
@@ -522,8 +469,9 @@ function switchPresident(id){
   buildLegend();
   buildRegionGeometry();
   paint(); paintDeltas();
-  clearInset();
-  if(tab==="region") showRegionList(); else clearPanel();
+  resetMapZoom();
+  setTab("dossier");
+  clearPanel();
 }
 
 
@@ -537,7 +485,13 @@ function startMap(){
     ALLFEATS=feats;
     var proj=d3.geoNaturalEarth1().fitSize([960,480],{type:"FeatureCollection",features:feats});
     geoPath=d3.geoPath(proj);
-    svgSel=d3.select(host).append("svg").attr("viewBox","0 0 960 480")
+    // Keep the projection in 960×480 space (RLAYOUT, paintDeltas, and the
+    // zoom transform all assume it). To go full-bleed we set preserveAspectRatio
+    // to "xMidYMid slice" so the SVG fills/crops its container instead of
+    // letterboxing.
+    svgSel=d3.select(host).append("svg")
+      .attr("viewBox","0 0 960 480")
+      .attr("preserveAspectRatio","xMidYMid slice")
       .attr("role","img").attr("aria-label","World map of US alignment");
 
     // Invisible background rect so drag-to-pan works when starting from ocean
@@ -608,7 +562,7 @@ function startMap(){
     buildRegionGeometry();
     paint(); paintDeltas();
   }).catch(function(){
-    document.getElementById("map").innerHTML='<p style="color:var(--ink3);padding:20px">Map data could not be loaded. Country search and the Region tab still work.</p>';
+    document.getElementById("map").innerHTML='<div class="map-loading">Map data could not be loaded. Country search still works.</div>';
   });
 }
 
@@ -616,7 +570,58 @@ function startMap(){
    Reset button in index.html. */
 function resetMapZoom(){
   if(!svgSel || !_mapZoom) return;
-  svgSel.transition().duration(280).call(_mapZoom.transform, d3.zoomIdentity);
+  var dur = prefersReducedMotion() ? 0 : 280;
+  svgSel.transition().duration(dur).call(_mapZoom.transform, d3.zoomIdentity);
+}
+
+/* Clear all selection state and return to the friendly overview. */
+function goOverview(){
+  selName=null; selRegion=null;
+  paint(); paintDeltas();
+  setTab("dossier");
+  clearPanel();
+  resetMapZoom();
+}
+
+/* ---- floating chrome helpers (legend, methodology modal, mobile sheet) ---- */
+function toggleLegend(){
+  var card=document.getElementById("legendCard");
+  var btn =document.getElementById("legendToggle");
+  if(!card) return;
+  var collapsed=card.classList.toggle("collapsed");
+  if(btn) btn.setAttribute("aria-expanded", collapsed?"false":"true");
+}
+var _methPrevFocus=null;
+function openMethodology(){
+  var m=document.getElementById("methodologyModal");
+  if(!m) return;
+  _methPrevFocus=document.activeElement;
+  m.hidden=false;
+  // Focus the close button so Esc + keyboard navigation just work.
+  var closeBtn=m.querySelector(".modal-close");
+  if(closeBtn) closeBtn.focus();
+}
+function closeMethodology(){
+  var m=document.getElementById("methodologyModal");
+  if(!m) return;
+  m.hidden=true;
+  if(_methPrevFocus && _methPrevFocus.focus) _methPrevFocus.focus();
+}
+
+/* Mobile bottom-sheet: tap the handle / tab bar / any panel content area to
+   expand from peek; tap outside the dock to collapse. On desktop these are
+   no-ops because the CSS class has no effect. */
+function openSheet(){
+  var dock=document.getElementById("dock");
+  if(dock) dock.classList.add("sheet-open");
+}
+function closeSheet(){
+  var dock=document.getElementById("dock");
+  if(dock) dock.classList.remove("sheet-open");
+}
+function toggleSheet(){
+  var dock=document.getElementById("dock");
+  if(dock) dock.classList.toggle("sheet-open");
 }
 
 /* ---- country search (uses the global allKeys for the current president) ---- */
@@ -627,7 +632,18 @@ document.getElementById("search").addEventListener("keydown",function(e){
           allKeys.find(function(k){return k.toLowerCase().indexOf(q)===0;})||
           allKeys.find(function(k){return k.toLowerCase().indexOf(q)>-1;});
   if(hit)showCountry(hit);
-  else document.getElementById("pbody").innerHTML='<div class="empty">No country matching that search.</div>';
+  else document.getElementById("pbody").innerHTML='<div class="empty-state"><h2 class="empty-h">Nothing matched</h2><p class="empty-lead">No country matches that search. Try another spelling.</p></div>';
+});
+
+
+/* ---- global keyboard: Esc closes modal / collapses sheet / clears selection ---- */
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Escape") return;
+  var m=document.getElementById("methodologyModal");
+  if(m && !m.hidden){ closeMethodology(); return; }
+  var dock=document.getElementById("dock");
+  if(dock && dock.classList.contains("sheet-open")){ closeSheet(); return; }
+  if(selName || selRegion){ goOverview(); }
 });
 
 
@@ -638,24 +654,28 @@ document.getElementById("search").addEventListener("keydown",function(e){
   populateSelector();
   renderHeader();
   buildLegend();
-  clearInset();
+  clearPanel();
   startMap();
   document.getElementById("acustomq").addEventListener("keydown",function(e){
     if(e.key==="Enter") runCustomQ();
   });
+  // On narrow viewports the legend card defaults to collapsed (just the
+  // Filter button) to leave room for the search and the map.
+  if(window.matchMedia && window.matchMedia("(max-width:720px)").matches){
+    var lc=document.getElementById("legendCard");
+    var lt=document.getElementById("legendToggle");
+    if(lc) lc.classList.add("collapsed");
+    if(lt) lt.setAttribute("aria-expanded","false");
+  }
 })();
 
 /* ---- AI Analysis panel ---- */
 var _aAbort=null;
 var _aPreset=-1;
 
-function toggleAnalysis(){
-  var sec=document.getElementById("analysisSection");
-  var hdr=document.getElementById("analysisHeader");
-  if(!sec) return;
-  var open=sec.classList.toggle("aopen");
-  hdr.setAttribute("aria-expanded",open?"true":"false");
-}
+/* Legacy entry point retained for any callers (e.g. _runQuery's guard). In
+   the redesigned UI, "opening analysis" means switching to the Ask AI tab. */
+function toggleAnalysis(){ setTab("askai"); }
 
 function refreshAnalysisBtns(){
   var label=_buildContextLabel();

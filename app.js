@@ -93,6 +93,7 @@ function setTabSilent(t){
 }
 function clearPanel(){
   document.getElementById("pbody").innerHTML='<div class="empty">Click a country on the map or search above.</div>';
+  refreshAnalysisBtns();
 }
 
 function outcomeBlock(k){
@@ -113,7 +114,7 @@ function showCountry(name){
       '(shown neutral on the map). Most unclassified states were not part of a distinct Trump-era initiative through May 2026.</div>';
     selName=null;paint();return;
   }
-  selName=name;
+  selName=name; refreshAnalysisBtns();
   var info=TIERS[d.tier], pts=d.points.slice(), interp=false;
   if(pts[pts.length-1]==="interp"){interp=true;pts.pop();}
   var safeReg=(d.region||"").replace(/'/g,"\\'");
@@ -144,7 +145,7 @@ function showRegion(r){
   setTabSilent("region");
   var R=REGIONS[r], pb=document.getElementById("pbody");
   if(!R){showRegionList();return;}
-  selRegion=r; selName=null;
+  selRegion=r; selName=null; refreshAnalysisBtns();
   var html='<div class="backrow"><button onclick="backToRegions()">&lsaquo; all regions</button></div>'+
     '<div class="ph"><h2>'+r+'</h2></div>'+
     '<div class="tiltbadge">'+R.tilt+'</div>'+
@@ -158,7 +159,7 @@ function showRegion(r){
   paint();
   drawInset("region",r);
 }
-function backToRegions(){ selRegion=null; showRegionList(); paint(); }
+function backToRegions(){ selRegion=null; showRegionList(); paint(); refreshAnalysisBtns(); }
 
 function paint(){
   if(!svgSel)return;
@@ -306,6 +307,7 @@ function switchPresident(id){
   paint();
   clearInset();
   if(tab==="region") showRegionList(); else clearPanel();
+  refreshAnalysisBtns();
 }
 
 
@@ -401,11 +403,28 @@ document.getElementById("search").addEventListener("keydown",function(e){
    Analysis panel — AI commentary via Anthropic API
    ===================================================================== */
 
-var A_PROMPTS={
-  regional:"Based on this data about Trump's second-term foreign policy, analyze the 3 most significant regional trends in the current alignment ledger. Be concise and analytical.",
-  risks:"What are the 3 biggest structural risks or vulnerabilities in this foreign policy posture? Focus on durability, dependencies, and second-order effects.",
-  historical:"How does this foreign policy posture compare to historical US foreign policy patterns? What's genuinely new vs. what follows established precedents?"
-};
+function getPrompts(){
+  if(selName){
+    var k=keyFor(selName)||selName;
+    return [
+      {label:"Summarize",        q:"Summarize "+k+"'s alignment tier, the key evidence behind it, and the main durability risks."},
+      {label:"Outcome risks",    q:"Analyze the outcome line for "+k+". What would need to happen for the downside to materialize, and what would lock in the best case?"},
+      {label:"Regional fit",     q:"How does "+k+"'s position compare to others in its region, and what makes it strategically notable or unusual?"}
+    ];
+  }
+  if(selRegion){
+    return [
+      {label:"Summarize region", q:"Summarize the US position in "+selRegion+", its flagship initiatives, and where it fits in the overall strategy."},
+      {label:"Key risks",        q:"What are the biggest risks to the US position in "+selRegion+"? Which countries are most likely to shift tiers?"},
+      {label:"Strategic weight", q:"How important is "+selRegion+" to the overall foreign policy thesis? What would success or failure here mean for the broader strategy?"}
+    ];
+  }
+  return [
+    {label:"Regional trends",   q:"Based on this data, analyze the 3 most significant regional trends in the current alignment ledger. Be concise and analytical."},
+    {label:"Key risks",         q:"What are the 3 biggest structural risks or vulnerabilities in this foreign policy posture? Focus on durability, dependencies, and second-order effects."},
+    {label:"Historical context",q:"How does this foreign policy posture compare to historical US foreign policy patterns? What's genuinely new vs. what follows established precedents?"}
+  ];
+}
 
 var A_SYSTEM="You are a foreign policy analyst. You have been given the full dossier of Trump second-term (2025–2026) US foreign policy alignments — 130+ countries classified into tiers (emerging gain, solid gain, established ally, in play, strained, adversarial) with sourced reasoning and regional analysis. Respond analytically and concisely in 3–5 short paragraphs. Do not use bullet points. No partisan framing.";
 
@@ -414,48 +433,68 @@ function toggleAnalysis(){
   var hdr=document.getElementById("analysisHeader");
   var open=sec.classList.toggle("aopen");
   hdr.setAttribute("aria-expanded", open?"true":"false");
-  if(open){
-    var saved=localStorage.getItem("fp_atlas_key")||"";
-    if(saved){
-      document.getElementById("akeyinput").value=saved;
-      document.getElementById("akeymsg").textContent="Key saved";
-    }
-  }
-}
-
-function saveAKey(){
-  var val=document.getElementById("akeyinput").value.trim();
-  var msg=document.getElementById("akeymsg");
-  if(!val){msg.textContent="Enter a key first.";return;}
-  localStorage.setItem("fp_atlas_key",val);
-  msg.textContent="Saved.";
-  setTimeout(function(){msg.textContent="Key saved";},1500);
 }
 
 function buildContext(){
   var P=window.PRESIDENTS[CURRENT]||{};
-  var dos=P.dossier||{}, regs=P.regions||{};
+  var dos=P.dossier||{}, regs=P.regions||{}, outs=P.outcomes||{};
   var tn={1:"Emerging gain",2:"Solid gain",3:"Established ally",4:"In play",5:"Strained",6:"Adversarial"};
+  var lines=["DOSSIER: "+(P.label||CURRENT)+" ("+(P.asOf||"")+")",""];
+
+  // Focus block — entity-specific data at the top
+  if(selName){
+    var k=keyFor(selName)||selName, d=dos[k], o=outs[k];
+    lines.push("=== FOCUS: "+k+" ===");
+    if(d){
+      lines.push("Tier: "+d.tier+" "+tn[d.tier]);
+      lines.push("Region: "+(d.region||""));
+      var pts=d.points.filter(function(p){return p!=="interp";});
+      lines.push("Evidence:");
+      pts.forEach(function(p){lines.push("  - "+p);});
+      if(d.points.indexOf("interp")>-1)lines.push("  [Interpretive placement]");
+    }
+    if(o&&o.best&&o.best!=="—"){
+      lines.push("Outcome line:");
+      lines.push("  Best: "+o.best);
+      lines.push("  Base: "+o.base);
+      lines.push("  Downside: "+o.down);
+    }
+    lines.push("===","");
+  } else if(selRegion){
+    var R=regs[selRegion];
+    lines.push("=== FOCUS REGION: "+selRegion+" ===");
+    if(R){
+      lines.push("Tilt: "+R.tilt);
+      lines.push("Dynamics: "+R.dynamics);
+      lines.push("Projects: "+R.projects.join("; "));
+      lines.push("Goal: "+R.goal);
+      lines.push("Stakes: "+R.stakes);
+    }
+    lines.push("Countries in region:");
+    Object.keys(dos).forEach(function(k){
+      if(k==="Venezuela_note")return;
+      if(dos[k].region===selRegion)lines.push("  "+k+" [T"+dos[k].tier+" "+tn[dos[k].tier]+"]");
+    });
+    lines.push("===","");
+  }
+
+  // Full ledger summary
   var cnt={}, ent={1:[],2:[],3:[],4:[],5:[],6:[]};
   Object.keys(dos).forEach(function(k){
     if(k==="Venezuela_note")return;
     var t=dos[k].tier; if(!t||t===0)return;
-    cnt[t]=(cnt[t]||0)+1;
-    if(ent[t])ent[t].push(k);
+    cnt[t]=(cnt[t]||0)+1; if(ent[t])ent[t].push(k);
   });
-  var lines=["DOSSIER: "+(P.label||CURRENT)+" ("+(P.asOf||"")+")", ""];
   lines.push("TIER COUNTS:");
   [2,1,3,4,5,6].forEach(function(t){
     if(cnt[t])lines.push("  T"+t+" "+tn[t]+": "+cnt[t]+" — "+ent[t].join(", "));
   });
-  lines.push("");
-  lines.push("REGIONAL OVERVIEW:");
+  lines.push("","REGIONAL OVERVIEW:");
   Object.keys(regs).forEach(function(r){
     var R=regs[r];
     lines.push("  "+r+" ["+R.tilt+"]: "+R.dynamics+" | Goal: "+R.goal);
   });
-  lines.push("");
-  lines.push("COUNTRY DETAILS (T2 solid gains, T6 adversarial, T4 in-play):");
+  lines.push("","COUNTRY DETAILS (T2 solid gains, T6 adversarial, T4 in-play):");
   [2,6,4].forEach(function(t){
     (ent[t]||[]).forEach(function(k){
       var d=dos[k]; if(!d)return;
@@ -473,9 +512,24 @@ function setAActive(idx){
   }
 }
 
-function runAnalysis(type){
-  setAActive({regional:0,risks:1,historical:2}[type]);
-  sendToAPI(A_PROMPTS[type]);
+function runAnalysis(idx){
+  setAActive(idx);
+  sendToAPI(getPrompts()[idx].q);
+}
+
+var _lastACtx=null;
+function refreshAnalysisBtns(){
+  var ctx=selName||(selRegion?"region:"+selRegion:null);
+  var changed=ctx!==_lastACtx; _lastACtx=ctx;
+  var prompts=getPrompts();
+  for(var i=0;i<3;i++){var b=document.getElementById("abtn"+i);if(b)b.textContent=prompts[i].label;}
+  var el=document.getElementById("acontext");
+  if(el){
+    if(selName)el.innerHTML="&rsaquo; <b>"+(keyFor(selName)||selName)+"</b>";
+    else if(selRegion)el.innerHTML="&rsaquo; <b>"+selRegion+"</b>";
+    else el.innerHTML="";
+  }
+  if(changed)clearA();
 }
 
 function runCustomQ(){
@@ -486,12 +540,7 @@ function runCustomQ(){
 }
 
 function sendToAPI(question){
-  var key=localStorage.getItem("fp_atlas_key")||"";
   var res=document.getElementById("aresult");
-  if(!key){
-    res.innerHTML='<p style="color:var(--bad)">Enter your Anthropic API key above and click Save.</p>';
-    return;
-  }
   var userMsg=buildContext()+"\n\n---\n\n"+question;
   var btns=document.querySelectorAll(".abtn,.asend");
   btns.forEach(function(b){b.disabled=true;});
@@ -501,9 +550,7 @@ function sendToAPI(question){
     method:"POST",
     headers:{
       "Content-Type":"application/json",
-      "x-api-key":key,
-      "anthropic-version":"2023-06-01",
-      "anthropic-dangerous-direct-browser-access":"true"
+      "anthropic-version":"2023-06-01"
     },
     body:JSON.stringify({
       model:"claude-sonnet-4-20250514",

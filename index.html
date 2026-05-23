@@ -163,6 +163,32 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 .controls select{font-family:inherit;font-size:13.5px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);cursor:pointer}
 .controls select:focus{outline:none;border-color:var(--accent)}
 .asof{font-size:11.5px;color:var(--ink3)}
+.analysisSection{margin-top:18px;padding:0}
+.analysisHeader{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none;border-radius:14px}
+.analysisHeader:hover{background:var(--line2)}
+.analysisSection.aopen .analysisHeader{border-radius:14px 14px 0 0}
+.achevron{font-size:15px;color:var(--ink3);transition:transform .18s;flex:none;line-height:1}
+.analysisSection.aopen .achevron{transform:rotate(180deg)}
+.analysisbody{display:none;border-top:1px solid var(--line);padding:14px 18px 18px}
+.analysisSection.aopen .analysisbody{display:block}
+.abtnrow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.abtn{font-size:12.5px;padding:6px 13px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink2);cursor:pointer;font-family:inherit}
+.abtn:hover:not(:disabled){border-color:var(--s-aligned);color:var(--ink)}
+.abtn.asel{border-color:var(--s-aligned);color:var(--s-aligned)}
+.abtn:disabled{opacity:.5;cursor:default}
+.acustomrow{display:flex;gap:7px;margin-bottom:14px}
+.acustomrow .search{flex:1}
+.asend{font-size:12.5px;padding:7px 14px;border-radius:9px;border:0;background:var(--s-aligned);color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap;flex:none}
+.asend:hover:not(:disabled){opacity:.85}
+.asend:disabled{opacity:.5;cursor:default}
+.aresult{font-size:13.4px;line-height:1.62;color:var(--ink)}
+.aresult p{margin:0 0 11px}
+.aresult p:last-of-type{margin-bottom:0}
+.aresult .aload{color:var(--ink3);font-style:italic}
+.aclear{display:block;margin-top:10px;font-size:11.5px;background:none;border:0;color:var(--ink3);cursor:pointer;font-family:inherit;padding:0}
+.aclear:hover{color:var(--ink)}
+.acontext{font-size:12px;color:var(--ink3);margin-left:10px;margin-right:auto}
+.acontext b{color:var(--ink2);font-weight:500}
 </style>
 </head>
 <body>
@@ -204,6 +230,26 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
     <div class="pinner" id="pbody">
       <div class="empty">Click a country on the map &mdash; or search above &mdash; for the deals, events, reasoning, and projected outcomes behind its classification.</div>
     </div>
+  </div>
+</div>
+
+<div class="mapcard analysisSection" id="analysisSection">
+  <div class="analysisHeader" onclick="toggleAnalysis()" tabindex="0" role="button" aria-expanded="false" id="analysisHeader">
+    <span style="font-size:13px;font-weight:600;color:var(--ink)">AI Analysis</span>
+    <span id="acontext" class="acontext"></span>
+    <span class="achevron">&#8964;</span>
+  </div>
+  <div class="analysisbody" id="analysisbody">
+    <div class="abtnrow">
+      <button class="abtn" id="abtn0" onclick="runAnalysis(0)">Regional trends</button>
+      <button class="abtn" id="abtn1" onclick="runAnalysis(1)">Key risks</button>
+      <button class="abtn" id="abtn2" onclick="runAnalysis(2)">Historical context</button>
+    </div>
+    <div class="acustomrow">
+      <input class="search" id="acustomq" placeholder="Ask your own question about this foreign policy posture…" autocomplete="off">
+      <button class="asend" onclick="runCustomQ()">Ask</button>
+    </div>
+    <div class="aresult" id="aresult"></div>
   </div>
 </div>
 

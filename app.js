@@ -1,20 +1,53 @@
 /* =====================================================================
-   Foreign Policy Atlas -- application logic (president-agnostic).
+   Foreign Policy Atlas — application logic (president-agnostic).
    Data is supplied by data/<president>.js via the window.PRESIDENTS registry.
    This file renders whichever president is selected in the dropdown.
+
+   Schema v2: each dossier entry has
+     state    — core-ally | aligned | neutral | strained | adversarial | us
+     delta    — ↑↑ | ↑ | → | ↓ | ↓↓ | —
+     baseline — one sentence on what the prior administration left behind
+     region, points[]
+   The map color comes from state; an overlaid chevron at each country
+   centroid shows delta.
    ===================================================================== */
 
-/* ---- tier config + map-name aliases (shared across presidents) ---- */
-var TIERS={
-  1:{c:"--t1",name:"Emerging gain",desc:"new &amp; real, not yet locked in"},
-  2:{c:"--t2",name:"Solid gain",desc:"aligned &amp; institutionalizing"},
-  3:{c:"--t3",name:"Established ally",desc:"maintained, not a new Trump win"},
-  4:{c:"--t4",name:"In play",desc:"courted or contested"},
-  5:{c:"--t5",name:"Strained / uncommitted",desc:"cooling or low-engagement"},
-  6:{c:"--t6",name:"Adversarial / rival",desc:""},
-  0:{c:"--t0",name:"United States",desc:""}
+/* ---- state + delta config (shared across presidents) ---- */
+var STATE_COLOR = {
+  "core-ally":   "--s-core",
+  "aligned":     "--s-aligned",
+  "neutral":     "--s-neutral",
+  "strained":    "--s-strained",
+  "adversarial": "--s-adversarial",
+  "us":          "--s-us"
 };
-var ORDER=[2,1,3,4,5,6];
+var STATE_NAME = {
+  "core-ally":   "Core ally",
+  "aligned":     "Aligned",
+  "neutral":     "Neutral",
+  "strained":    "Strained",
+  "adversarial": "Adversarial",
+  "us":          "United States"
+};
+var STATE_DESC = {
+  "core-ally":   "treaty-level or institutionally deep",
+  "aligned":     "partner; moving together on most issues",
+  "neutral":     "transactional; no strong pull either way",
+  "strained":    "cooling, damaged, or low-engagement",
+  "adversarial": "active rivalry or hostility",
+  "us":          ""
+};
+var STATE_ORDER = ["core-ally","aligned","neutral","strained","adversarial"];
+
+var DELTA_ORDER = ["↑↑","↑","→","↓","↓↓"];
+var DELTA_NAME = {
+  "↑↑": "major gain",
+  "↑":      "modest gain",
+  "→":      "held",
+  "↓":      "modest damage",
+  "↓↓":"major damage"
+};
+
 var ALIAS={
   "Dem. Rep. Congo":"Dem. Rep. Congo","Czech Rep.":"Czechia","Macedonia":"North Macedonia",
   "Dominican Rep.":"Dominican Republic"
@@ -41,8 +74,8 @@ var RLAYOUT={
 
 
 /* ---- shared UI / map state ---- */
-var hidden={}, selName=null, selRegion=null, tab="country", svgSel=null;
-var ALLFEATS=null, REGIONFEATS=null, FEATFORKEY=null, nameToFeat={}, gOut=null, geoPath=null;
+var hiddenState={}, hiddenDelta={}, selName=null, selRegion=null, tab="country", svgSel=null;
+var ALLFEATS=null, REGIONFEATS=null, FEATFORKEY=null, nameToFeat={}, gOut=null, gD=null, geoPath=null;
 
 /* ---- current-president state (reassigned by loadPresident) ---- */
 var CURRENT=null, DOSSIER={}, REGIONS={}, OUTCOMES={}, regionOf={}, allKeys=[];
@@ -62,19 +95,56 @@ function keyFor(n){ if(ALIAS[n]&&DOSSIER[ALIAS[n]])return ALIAS[n]; if(DOSSIER[n
 function cssv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 
+/* ---- legend with two rows (state + delta) and live counts ---- */
 function buildLegend(){
   var L=document.getElementById("legend");
   L.innerHTML="";
-  ORDER.forEach(function(t){
-    var info=TIERS[t];
-    var b=document.createElement("button");
-    b.innerHTML='<span class="sw" style="background:var('+info.c+')"></span>'+info.name+
-      '<span class="count" id="cnt'+t+'"></span>';
-    b.onclick=function(){hidden[t]=!hidden[t];b.classList.toggle("dim",!!hidden[t]);paint();};
-    L.appendChild(b);
+
+  // count distribution for both axes (skip Venezuela_note and the US entry)
+  var sc={}, dc={};
+  Object.keys(DOSSIER).forEach(function(k){
+    if(k==="Venezuela_note") return;
+    var d=DOSSIER[k];
+    if(!d || d.state==="us") return;
+    sc[d.state]=(sc[d.state]||0)+1;
+    if(d.delta) dc[d.delta]=(dc[d.delta]||0)+1;
   });
-  var c={};Object.keys(DOSSIER).forEach(function(k){if(k!=="Venezuela_note"){var t=DOSSIER[k].tier;c[t]=(c[t]||0)+1;}});
-  ORDER.forEach(function(t){var e=document.getElementById("cnt"+t);if(e)e.textContent=c[t]||0;});
+
+  // ----- state row -----
+  var rowS=document.createElement("div"); rowS.className="legrow";
+  var lblS=document.createElement("span"); lblS.className="leglabel"; lblS.textContent="State";
+  rowS.appendChild(lblS);
+  STATE_ORDER.forEach(function(s){
+    var b=document.createElement("button");
+    b.innerHTML='<span class="sw" style="background:var('+STATE_COLOR[s]+')"></span>'+
+                STATE_NAME[s]+'<span class="count">'+(sc[s]||0)+'</span>';
+    if(hiddenState[s]) b.classList.add("dim");
+    b.onclick=function(){
+      hiddenState[s]=!hiddenState[s];
+      b.classList.toggle("dim",!!hiddenState[s]);
+      paint(); paintDeltas();
+    };
+    rowS.appendChild(b);
+  });
+  L.appendChild(rowS);
+
+  // ----- delta row -----
+  var rowD=document.createElement("div"); rowD.className="legrow";
+  var lblD=document.createElement("span"); lblD.className="leglabel"; lblD.textContent="Trump moved it";
+  rowD.appendChild(lblD);
+  DELTA_ORDER.forEach(function(da){
+    var b=document.createElement("button");
+    b.innerHTML='<span class="darr" data-delta="'+da+'">'+da+'</span>'+
+                DELTA_NAME[da]+'<span class="count">'+(dc[da]||0)+'</span>';
+    if(hiddenDelta[da]) b.classList.add("dim");
+    b.onclick=function(){
+      hiddenDelta[da]=!hiddenDelta[da];
+      b.classList.toggle("dim",!!hiddenDelta[da]);
+      paint(); paintDeltas();
+    };
+    rowD.appendChild(b);
+  });
+  L.appendChild(rowD);
 }
 
 function setTab(t){
@@ -83,7 +153,7 @@ function setTab(t){
   document.getElementById("tabR").classList.toggle("on",t==="region");
   document.getElementById("searchrow").style.display=(t==="country")?"block":"none";
   if(t==="region"){ if(selRegion) showRegion(selRegion); else showRegionList(); }
-  else { selRegion=null; paint(); if(selName) showCountry(selName); else clearPanel(); }
+  else { selRegion=null; paint(); paintDeltas(); if(selName) showCountry(selName); else clearPanel(); }
 }
 function setTabSilent(t){
   tab=t;
@@ -97,7 +167,7 @@ function clearPanel(){
 
 function outcomeBlock(k){
   var o=OUTCOMES[k];
-  if(!o||o.best==="\u2014")return"";
+  if(!o||o.best==="—")return"";
   return '<div class="outcome"><h3>Outcome line &mdash; what this could become</h3>'+
     '<div class="ocell"><span class="otag g">Best</span><span>'+o.best+'</span></div>'+
     '<div class="ocell"><span class="otag m">Base</span><span>'+o.base+'</span></div>'+
@@ -111,28 +181,55 @@ function showCountry(name){
   if(!d){
     pb.innerHTML='<div class="empty"><b>'+name+'</b> is not individually classified in this ledger '+
       '(shown neutral on the map). Most unclassified states were not part of a distinct Trump-era initiative through May 2026.</div>';
-    selName=null;paint();return;
+    selName=null; paint(); paintDeltas(); return;
   }
   selName=name;
-  var info=TIERS[d.tier], pts=d.points.slice(), interp=false;
-  if(pts[pts.length-1]==="interp"){interp=true;pts.pop();}
+  var sColor=STATE_COLOR[d.state]||"--s-neutral";
+  var sName =STATE_NAME [d.state]||"Unclassified";
+  var sDesc =STATE_DESC [d.state]||"";
+
+  var pts=(d.points||[]).slice(), interp=false;
+  if(pts.length && pts[pts.length-1]==="interp"){interp=true;pts.pop();}
   var safeReg=(d.region||"").replace(/'/g,"\\'");
-  var html='<div class="ph"><span class="sw" style="background:var('+info.c+')"></span><h2>'+k+'</h2></div>'+
-    '<p class="tierline"><b style="color:var('+info.c+')">'+info.name+'</b>'+(info.desc?' &mdash; '+info.desc:'')+'</p>'+
-    '<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+(d.region||'')+' &rsaquo; view region</div>'+
-    '<ul class="pts" style="--dotc:var('+info.c+')">';
+
+  var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+k+'</h2></div>';
+
+  // state + delta badges (suppressed for the US entry)
+  if(d.state!=="us"){
+    html+='<div class="badges">'+
+      '<span class="badge"><span class="sw" style="background:var('+sColor+')"></span>'+
+        '<b>'+sName+'</b>'+(sDesc?' &middot; '+sDesc:'')+'</span>';
+    if(d.delta && d.delta!=="—"){
+      html+='<span class="badge"><span class="darr" data-delta="'+d.delta+'">'+d.delta+'</span>'+
+            '<b>'+(DELTA_NAME[d.delta]||"")+'</b> &middot; vs. prior administration</span>';
+    }
+    html+='</div>';
+  }
+
+  html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+(d.region||'')+' &rsaquo; view region</div>';
+
+  // baseline block (skip if missing or em-dash)
+  if(d.baseline && d.baseline!=="—"){
+    html+='<div class="baseline"><span class="blab">Inherited from prior administration</span>'+d.baseline+'</div>';
+  }
+
+  html+='<ul class="pts" style="--dotc:var('+sColor+')">';
   pts.forEach(function(p){html+='<li>'+p+'</li>';});
   html+='</ul>';
-  if(interp)html+='<div class="interp">Interpretive placement \u2014 based on overall posture, not one named agreement; reasonable analysts could tier it differently.</div>';
+
+  if(interp){
+    html+='<div class="interp">Interpretive placement — based on overall posture rather than a single named event; reasonable analysts could score this differently.</div>';
+  }
   html+=outcomeBlock(k);
+
   pb.innerHTML=html;
-  paint();
+  paint(); paintDeltas();
   drawInset("country",k);
 }
 
 function showRegionList(){
   var pb=document.getElementById("pbody");
-  var html='<div class="empty" style="padding-top:2px;margin-bottom:6px">Pick a region \u2014 or click a region label on the map \u2014 for its dynamics, flagship projects, US goal, and long-term stakes.</div><div class="reglist">';
+  var html='<div class="empty" style="padding-top:2px;margin-bottom:6px">Pick a region — or click a region label on the map — for its dynamics, flagship projects, US goal, and long-term stakes.</div><div class="reglist">';
   Object.keys(REGIONS).forEach(function(r){
     html+='<button onclick="showRegion(\''+r.replace(/'/g,"\\'")+'\')">'+r+'</button>';
   });
@@ -155,44 +252,75 @@ function showRegion(r){
     '<div class="sech">Long-term stakes &mdash; benefit vs. damage</div>'+
     '<p style="margin:0;font-size:13.4px">'+R.stakes+'</p>';
   pb.innerHTML=html;
-  paint();
+  paint(); paintDeltas();
   drawInset("region",r);
 }
-function backToRegions(){ selRegion=null; showRegionList(); paint(); }
+function backToRegions(){ selRegion=null; showRegionList(); paint(); paintDeltas(); }
 
+
+/* ---- map painting (state-based) ---- */
 function paint(){
   if(!svgSel)return;
   svgSel.selectAll(".cty").each(function(d){
     var k=keyFor(d.properties.name);
-    var t=k?DOSSIER[k].tier:null;
-    var fill=(t===null||t===undefined||hidden[t])?cssv("--nd"):cssv(TIERS[t].c);
+    var entry=k?DOSSIER[k]:null;
+    var s=entry?entry.state:null;
+    var da=entry?entry.delta:null;
+    var dim = !!s && (hiddenState[s] || (da && hiddenDelta[da]));
+    var fill=(!s||dim) ? cssv("--nd") : cssv(STATE_COLOR[s]||"--s-neutral");
     var el=d3.select(this);
     el.attr("fill",fill);
     el.classed("sel",d.properties.name===selName);
     var inReg = selRegion && k && regionOf[k]===selRegion;
     el.classed("dimmed", !!selRegion && !inReg);
   });
-  // region outline + label active state
   svgSel.selectAll(".rgoutline").classed("show",function(d){return d===selRegion;});
   svgSel.selectAll(".rglabel").classed("active",function(d){return d===selRegion;});
+}
+
+/* ---- delta chevrons at country centroids (separate g-layer for z-order) ---- */
+function paintDeltas(){
+  if(!gD || !ALLFEATS) return;
+  gD.selectAll("*").remove();
+  ALLFEATS.forEach(function(f){
+    var k=keyFor(f.properties.name);
+    if(!k) return;
+    var d=DOSSIER[k];
+    if(!d || !d.delta || d.delta==="—" || d.state==="us") return;
+    if(hiddenState[d.state] || hiddenDelta[d.delta]) return;
+    if(selRegion && regionOf[k]!==selRegion) return;
+    var c=geoPath.centroid(f);
+    if(!c || isNaN(c[0])) return;
+    // skip features so small a 7px label would dominate
+    var bb=geoPath.bounds(f);
+    var w=bb[1][0]-bb[0][0], h=bb[1][1]-bb[0][1];
+    if(w<6 || h<6) return;
+    gD.append("text")
+      .attr("x", c[0]).attr("y", c[1])
+      .attr("text-anchor","middle")
+      .attr("dominant-baseline","middle")
+      .attr("class","delta-lbl")
+      .attr("data-delta", d.delta)
+      .text(d.delta);
+  });
 }
 
 function drawInset(mode, key){
   var host=document.getElementById("inset");
   var titleEl=document.getElementById("insettitle");
   var hintEl=document.getElementById("insethint");
-  if(!ALLFEATS){host.innerHTML='<div class="insetempty">Map still loading\u2026</div>';return;}
+  if(!ALLFEATS){host.innerHTML='<div class="insetempty">Map still loading…</div>';return;}
 
   // determine the focus features and which to highlight
   var focusFeats=[], hi={};
   if(mode==="country"){
     var f=FEATFORKEY(key); if(f){focusFeats=[f];hi[key]=1;}
-    titleEl.textContent="Detail \u2014 "+key;
+    titleEl.textContent="Detail — "+key;
     hintEl.textContent="zoomed to the selected country";
   } else if(mode==="region"){
     focusFeats=(REGIONFEATS[key]||[]).slice();
     focusFeats.forEach(function(ff){hi[ff.properties.name]=1;});
-    titleEl.textContent="Detail \u2014 "+key;
+    titleEl.textContent="Detail — "+key;
     hintEl.textContent="zoomed to the selected region";
   }
   if(!focusFeats.length){
@@ -204,7 +332,6 @@ function drawInset(mode, key){
   var fc={type:"FeatureCollection",features:focusFeats};
   var W=720,H=300;
   var padProj=d3.geoMercator().fitExtent([[24,24],[W-24,H-24]],fc);
-  // expand: find all features whose centroid falls in a padded screen window
   var b=d3.geoPath(padProj).bounds(fc);
   var mx=(b[1][0]-b[0][0])*0.55+30, my=(b[1][1]-b[0][1])*0.55+30;
   var win=[[b[0][0]-mx,b[0][1]-my],[b[1][0]+mx,b[1][1]+my]];
@@ -213,7 +340,6 @@ function drawInset(mode, key){
     if(!c||isNaN(c[0]))return false;
     return c[0]>=win[0][0]&&c[0]<=win[1][0]&&c[1]>=win[0][1]&&c[1]<=win[1][1];
   });
-  // make sure focus features are included
   focusFeats.forEach(function(ff){ if(context.indexOf(ff)<0)context.push(ff); });
 
   var path2=d3.geoPath(padProj);
@@ -228,8 +354,9 @@ function drawInset(mode, key){
     .attr("stroke",cssv("--stroke")).attr("stroke-width",0.6)
     .attr("fill",function(d){
       var k=keyFor(d.properties.name);
-      var t=k?DOSSIER[k].tier:null;
-      return (t===null||t===undefined)?cssv("--nd"):cssv(TIERS[t].c);
+      var entry=k?DOSSIER[k]:null;
+      var s=entry?entry.state:null;
+      return (!s) ? cssv("--nd") : cssv(STATE_COLOR[s]||"--s-neutral");
     })
     .classed("dim2",function(d){return !hi[d.properties.name];})
     .classed("sel2",function(d){return !!hi[d.properties.name];})
@@ -237,10 +364,30 @@ function drawInset(mode, key){
     .on("click",function(e,d){showCountry(d.properties.name);})
     .append("title").text(function(d){return d.properties.name;});
 
+  // delta chevrons inside the inset (larger font than the main map)
+  svg2.append("g").selectAll("text").data(focusFeats.filter(function(ff){
+    var k=keyFor(ff.properties.name);
+    var d=k?DOSSIER[k]:null;
+    return d && d.delta && d.delta!=="—" && d.state!=="us";
+  })).join("text")
+    .attr("class","delta-lbl")
+    .style("font-size","13px")
+    .attr("text-anchor","middle").attr("dominant-baseline","middle")
+    .attr("x",function(d){return path2.centroid(d)[0];})
+    .attr("y",function(d){return path2.centroid(d)[1];})
+    .attr("data-delta",function(d){
+      var k=keyFor(d.properties.name);
+      return DOSSIER[k].delta;
+    })
+    .text(function(d){
+      var k=keyFor(d.properties.name);
+      return DOSSIER[k].delta;
+    });
+
   // labels for highlighted features (only if reasonably large on screen)
-  svg2.append("g").selectAll("text").data(focusFeats).join("text")
+  svg2.append("g").selectAll("text.lbl2").data(focusFeats).join("text")
     .attr("class","lbl2")
-    .attr("transform",function(d){var c=path2.centroid(d);return "translate("+c+")";})
+    .attr("transform",function(d){var c=path2.centroid(d); return "translate("+(c[0])+","+(c[1]+12)+")";})
     .attr("text-anchor","middle").attr("dy","0.32em")
     .each(function(d){
       var bb=path2.bounds(d);
@@ -262,7 +409,7 @@ function buildRegionGeometry(){
   if(!FEATFORKEY) return;
   var rf={};
   Object.keys(regionOf).forEach(function(k){
-    var r=regionOf[k]; if(!r||r==="\u2014") return;
+    var r=regionOf[k]; if(!r||r==="—") return;
     var f=FEATFORKEY(k); if(!f) return;
     (rf[r]=rf[r]||[]).push(f);
   });
@@ -299,11 +446,11 @@ function populateSelector(){
 function switchPresident(id){
   if(!window.PRESIDENTS[id]) return;
   loadPresident(id);
-  selName=null; selRegion=null; hidden={};
+  selName=null; selRegion=null; hiddenState={}; hiddenDelta={};
   renderHeader();
   buildLegend();
   buildRegionGeometry();
-  paint();
+  paint(); paintDeltas();
   clearInset();
   if(tab==="region") showRegionList(); else clearPanel();
 }
@@ -338,6 +485,7 @@ function startMap(){
     };
 
     gOut=svgSel.append("g");   // region outline group (rebuilt per president)
+    gD =svgSel.append("g").attr("class","delta-layer"); // delta chevrons
 
     // region labels with leader lines (layout-based; shared across presidents)
     var gL=svgSel.append("g");
@@ -365,7 +513,7 @@ function startMap(){
     });
 
     buildRegionGeometry();
-    paint();
+    paint(); paintDeltas();
   }).catch(function(){
     document.getElementById("map").innerHTML='<p style="color:var(--ink3);padding:20px">Map data could not be loaded. Country search and the Region tab still work.</p>';
   });

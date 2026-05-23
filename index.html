@@ -10,7 +10,14 @@
 :root{
   --bg:#F5F4EF; --panel:#FFFFFF; --ink:#26251F; --ink2:#56544B; --ink3:#86847A;
   --line:#E2E0D6; --line2:#EEEDE6; --chip:#F0EFE8;
-  --t1:#A9D17A; --t2:#5f9618; --t3:#2F6F4F; --t4:#2F7FD0; --t5:#9b998f; --t6:#DD4140; --t0:#5F5E5A;
+  /* state colors (the color of the map) */
+  --s-core:        #2F6F4F;
+  --s-aligned:     #5f9618;
+  --s-neutral:     #9b998f;
+  --s-strained:    #B07D1A;
+  --s-adversarial: #DD4140;
+  --s-us:          #5F5E5A;   /* the United States itself */
+  --accent:        #2F7FD0;   /* UI accent (links, focus, active tab) */
   --nd:#E8E6DD; --stroke:#FFFFFF;
   --good:#5f9618; --mid:#B07D1A; --bad:#C2403F;
   --lbl:#56544B; --lblbg:#FFFFFF;
@@ -19,7 +26,13 @@
   :root{
     --bg:#1B1B19; --panel:#252521; --ink:#ECEAE0; --ink2:#A8A69B; --ink3:#76746A;
     --line:#37362F; --line2:#2E2E29; --chip:#2E2E28;
-    --t1:#B6D98C; --t2:#97C459; --t3:#4F8C6A; --t4:#6FA8E5; --t5:#6e6d66; --t6:#E97A79; --t0:#B4B2A9;
+    --s-core:        #4F8C6A;
+    --s-aligned:     #97C459;
+    --s-neutral:     #6e6d66;
+    --s-strained:    #D4A53A;
+    --s-adversarial: #E97A79;
+    --s-us:          #B4B2A9;
+    --accent:        #6FA8E5;
     --nd:#323230; --stroke:#1c1c1a;
     --good:#97C459; --mid:#D4A53A; --bad:#E97A79;
     --lbl:#A8A69B; --lblbg:#252521;
@@ -32,12 +45,42 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
 header h1{font-size:23px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em}
 header p{margin:0;color:var(--ink2);font-size:13.5px}
-.legend{display:flex;flex-wrap:wrap;gap:7px 14px;margin:18px 0 6px}
+.legend{display:flex;flex-direction:column;gap:5px;margin:18px 0 6px}
+.legrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.legrow .leglabel{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink3);font-weight:600;padding-right:4px;flex:none}
 .legend button{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);
   background:none;border:0;padding:3px 5px;border-radius:7px;cursor:pointer;font-family:inherit}
 .legend button:hover{background:var(--line2)}
 .legend button.dim{opacity:.32}
 .sw{width:12px;height:12px;border-radius:3px;flex:none}
+.darr{font-weight:700;font-size:13px;line-height:1;display:inline-block;min-width:18px;text-align:center}
+.darr[data-delta="↑↑"]{color:#173404}
+.darr[data-delta="↑"] {color:#27500A}
+.darr[data-delta="→"] {color:var(--ink3)}
+.darr[data-delta="↓"] {color:#633806}
+.darr[data-delta="↓↓"]{color:#501313}
+@media (prefers-color-scheme:dark){
+  .darr[data-delta="↑↑"]{color:#B6D98C}
+  .darr[data-delta="↑"] {color:#97C459}
+  .darr[data-delta="↓"] {color:#D4A53A}
+  .darr[data-delta="↓↓"]{color:#E97A79}
+}
+.delta-lbl{
+  font-size:7px; font-weight:700; pointer-events:none;
+  paint-order:stroke; stroke:var(--lblbg); stroke-width:2px; stroke-linejoin:round;
+}
+.delta-lbl[data-delta="↑↑"]{fill:#173404}
+.delta-lbl[data-delta="↑"] {fill:#27500A}
+.delta-lbl[data-delta="→"] {fill:var(--ink3)}
+.delta-lbl[data-delta="↓"] {fill:#633806}
+.delta-lbl[data-delta="↓↓"]{fill:#501313}
+@media (prefers-color-scheme:dark){
+  .delta-lbl[data-delta="↑↑"]{fill:#B6D98C}
+  .delta-lbl[data-delta="↑"] {fill:#97C459}
+  .delta-lbl[data-delta="↓"] {fill:#D4A53A}
+  .delta-lbl[data-delta="↓↓"]{fill:#E97A79}
+}
 .hint{font-size:11.5px;color:var(--ink3);margin:0 0 12px}
 .layout{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;margin-top:6px}
 @media (max-width:860px){.layout{grid-template-columns:1fr}}
@@ -69,7 +112,7 @@ header p{margin:0;color:var(--ink2);font-size:13.5px}
 .rglabel.active .rghit{opacity:.09}
 .rglabel text{font-size:12px;font-weight:700;fill:var(--lbl);
   paint-order:stroke;stroke:var(--lblbg);stroke-width:4.5px;stroke-linejoin:round;letter-spacing:.02em}
-.rglabel:hover text{fill:var(--t4)}
+.rglabel:hover text{fill:var(--accent)}
 .rglead{stroke:var(--ink3);stroke-width:0.8;fill:none;opacity:.55}
 .rglabel.active text{fill:var(--ink);font-size:13px}
 .rglabel.active .rgdot{fill:var(--ink)}
@@ -78,14 +121,23 @@ header p{margin:0;color:var(--ink2);font-size:13.5px}
 .tabs{display:flex;border-bottom:1px solid var(--line)}
 .tabs button{flex:1;padding:10px 8px;font-size:12.5px;font-weight:500;background:none;border:0;
   color:var(--ink3);cursor:pointer;font-family:inherit;border-bottom:2px solid transparent}
-.tabs button.on{color:var(--ink);border-bottom-color:var(--t2)}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--s-aligned)}
 .pinner{padding:17px 19px;overflow-y:auto}
 .ph{display:flex;align-items:center;gap:9px;margin-bottom:3px}
 .ph .sw{width:14px;height:14px}
 .ph h2{font-size:18px;font-weight:600;margin:0;letter-spacing:-0.01em}
-.tierline{font-size:12.5px;color:var(--ink2);margin:0 0 4px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 3px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;
+  padding:2px 9px;border-radius:20px;background:var(--chip);color:var(--ink2)}
+.badge .sw{width:10px;height:10px}
+.badge .darr{font-size:12px;min-width:auto}
+.badge b{color:var(--ink);font-weight:600}
+.baseline{margin:9px 0 12px;padding:9px 11px;background:var(--chip);
+  border-radius:8px;font-size:12.6px;line-height:1.5;color:var(--ink2)}
+.baseline .blab{display:block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:3px}
 .reg{font-size:11.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;cursor:pointer}
-.reg:hover{color:var(--t4);text-decoration:underline}
+.reg:hover{color:var(--accent);text-decoration:underline}
 ul.pts{margin:0;padding:0;list-style:none}
 ul.pts li{position:relative;padding:0 0 11px 16px;font-size:13.4px;line-height:1.5}
 ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;background:var(--dotc)}
@@ -94,7 +146,7 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   border-top:1px dashed var(--line);padding-top:9px}
 .search{width:100%;padding:8px 11px;font-size:13px;border:1px solid var(--line);border-radius:9px;
   background:var(--bg);color:var(--ink);font-family:inherit}
-.search:focus{outline:none;border-color:var(--t4)}
+.search:focus{outline:none;border-color:var(--accent)}
 .searchrow{padding:13px 19px 0}
 .outcome{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}
 .outcome h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 9px}
@@ -104,7 +156,7 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 .sech{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:16px 0 7px}
 .rgoal{font-size:13.2px;background:var(--chip);border-radius:9px;padding:10px 12px;margin:4px 0 2px}
 .proj{position:relative;padding:0 0 8px 15px;font-size:13px;line-height:1.45}
-.proj:before{content:"";position:absolute;left:0;top:6px;width:5px;height:5px;border-radius:1px;background:var(--t2)}
+.proj:before{content:"";position:absolute;left:0;top:6px;width:5px;height:5px;border-radius:1px;background:var(--s-aligned)}
 .tiltbadge{display:inline-block;font-size:11.5px;padding:2px 10px;border-radius:20px;
   background:var(--chip);color:var(--ink);font-weight:500;margin-bottom:10px}
 .foot{margin-top:20px;font-size:11.5px;color:var(--ink3);line-height:1.6;
@@ -114,14 +166,14 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 .reglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .reglist button{font-size:11.5px;padding:4px 9px;border-radius:20px;border:1px solid var(--line);
   background:var(--bg);color:var(--ink2);cursor:pointer;font-family:inherit}
-.reglist button:hover{border-color:var(--t4);color:var(--ink)}
+.reglist button:hover{border-color:var(--accent);color:var(--ink)}
 .backrow{margin-bottom:10px}
-.backrow button{font-size:11.5px;background:none;border:0;color:var(--t4);cursor:pointer;
+.backrow button{font-size:11.5px;background:none;border:0;color:var(--accent);cursor:pointer;
   font-family:inherit;padding:0}
 .controls{display:flex;align-items:center;gap:11px;margin:16px 0 2px;flex-wrap:wrap}
 .controls label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
 .controls select{font-family:inherit;font-size:13.5px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);cursor:pointer}
-.controls select:focus{outline:none;border-color:var(--t4)}
+.controls select:focus{outline:none;border-color:var(--accent)}
 .asof{font-size:11.5px;color:var(--ink3)}
 </style>
 </head>
@@ -139,7 +191,7 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 </div>
 
 <div class="legend" id="legend"></div>
-<p class="hint">Click a country for its dossier &amp; outcomes &middot; click a region label on the map (or the Region tab) to outline that region &middot; legend chips filter the map.</p>
+<p class="hint">Color shows the state of the relationship today; the arrow on each country shows what <i>this</i> president changed from the prior baseline. Click a country for its dossier &amp; outcomes &middot; click a region label on the map (or the Region tab) to outline that region &middot; legend chips filter the map.</p>
 
 <div class="layout">
   <div>

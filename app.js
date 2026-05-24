@@ -265,15 +265,19 @@ function setTabSilent(_t){
 }
 function clearPanel(){
   var pb=document.getElementById("pbody"); if(!pb) return;
+  var hasRegions = REGIONS && Object.keys(REGIONS).length > 0;
   var html='<div class="empty-state">'+
     '<h2 class="empty-h">Tap any country</h2>'+
-    '<p class="empty-lead">to see the current U.S. strategic position and how it changed this term &mdash; or jump straight into a region below.</p>'+
-    '<p class="empty-sub">Regions</p>'+
-    '<div class="reglist">';
-  Object.keys(REGIONS).forEach(function(r){
-    html+='<button type="button" onclick="showRegion(\''+r.replace(/'/g,"\\'")+'\')">'+r+'</button>';
-  });
-  html+='</div></div>';
+    '<p class="empty-lead">to see the current U.S. strategic position and how it changed this term'+
+      (hasRegions ? ' &mdash; or jump straight into a region below.' : '.')+'</p>';
+  if(hasRegions){
+    html+='<p class="empty-sub">Regions</p><div class="reglist">';
+    Object.keys(REGIONS).forEach(function(r){
+      html+='<button type="button" onclick="showRegion(\''+r.replace(/'/g,"\\'")+'\')">'+r+'</button>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
   pb.innerHTML=html;
   refreshAnalysisBtns();
 }
@@ -331,7 +335,16 @@ function showCountry(name){
     html+='</div>';
   }
 
-  html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+_escHtml(d.region||'')+' &rsaquo; view region</div>';
+  // Region link is interactive only when the current president actually has a
+  // regions block. Until v3 regions are re-derived, render the region name as
+  // a plain non-interactive label rather than a dead link.
+  if(d.region){
+    if(REGIONS && REGIONS[d.region]){
+      html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+_escHtml(d.region)+' &rsaquo; view region</div>';
+    } else if(d.region!=="—"){
+      html+='<div class="reg reg-static">'+_escHtml(d.region)+'</div>';
+    }
+  }
 
   // ----- Inherited trajectory (the fixed counterfactual) -----
   if(inherited){
@@ -415,10 +428,8 @@ function showCountry(name){
   // ----- Existing OUTCOMES best/base/down (kept verbatim — distinct from the
   //       v3 `outcome` field above) -----
   html+=outcomeBlock(k);
-  html+='<div id="newsPanel" class="news-panel"><span class="aload">Loading headlines…</span></div>';
 
   pb.innerHTML=html;
-  _loadNews(k);
   paint(); paintDeltas();
   var fF=FEATFORKEY&&FEATFORKEY(k); if(fF) flyTo(fF);
 }
@@ -437,9 +448,7 @@ function showRegion(r){
   html+='</div><div class="sech">US strategic goal</div><div class="rgoal">'+R.goal+'</div>'+
     '<div class="sech">Long-term stakes &mdash; benefit vs. damage</div>'+
     '<p style="margin:0;font-size:13.4px">'+R.stakes+'</p>';
-  html+='<div id="newsPanel" class="news-panel"><span class="aload">Loading headlines…</span></div>';
   pb.innerHTML=html;
-  _loadNews(r);
   paint(); paintDeltas();
   var rf=REGIONFEATS&&REGIONFEATS[r];
   if(rf && rf.length) flyTo({type:"FeatureCollection",features:rf});
@@ -636,6 +645,11 @@ function zoomBy(factor){
    region, so they are rebuilt on every president switch. */
 function buildRegionGeometry(){
   if(!FEATFORKEY) return;
+  // Clear any previous outlines unconditionally; we'll re-add only if the
+  // current president actually defines regions.
+  if(gOut) gOut.selectAll("*").remove();
+  REGIONFEATS={};
+  if(!REGIONS || !Object.keys(REGIONS).length) return; // region layer is gated on regions existing
   var rf={};
   Object.keys(regionOf).forEach(function(k){
     var r=regionOf[k]; if(!r||r==="—") return;
@@ -644,7 +658,6 @@ function buildRegionGeometry(){
   });
   REGIONFEATS=rf;
   if(gOut && geoPath){
-    gOut.selectAll("*").remove();
     Object.keys(rf).forEach(function(r){
       gOut.append("path").datum(r).attr("class","rgoutline")
         .attr("d", geoPath({type:"FeatureCollection",features:rf[r]}));
@@ -787,30 +800,35 @@ function startMap(){
     gOut=gMap.append("g");   // region outline group (rebuilt per president)
     gD =gMap.append("g").attr("class","delta-layer"); // delta chevrons
 
-    // region labels with leader lines (layout-based; shared across presidents)
-    var gL=gMap.append("g");
-    Object.keys(RLAYOUT).forEach(function(r){
-      var Lp=RLAYOUT[r];
-      var g=gL.append("g").attr("class","rglabel").datum(r)
-        .on("click",function(){showRegion(r);});
-      g.append("line").attr("class","rglead")
-        .attr("x1",Lp.lx).attr("y1",Lp.ly).attr("x2",Lp.tx).attr("y2",Lp.ty);
-      g.append("circle").attr("class","rgdot")
-        .attr("cx",Lp.tx).attr("cy",Lp.ty).attr("r",2.4);
-      var anchor = Lp.lx<140 ? "start" : (Lp.lx>820?"end":"middle");
-      var txt=g.append("text")
-        .attr("x",Lp.lx).attr("y",Lp.ly)
-        .attr("text-anchor",anchor)
-        .text(r);
-      var tw=txt.node().getComputedTextLength();
-      var padX=14, padY=13;
-      var rx = anchor==="start" ? Lp.lx-padX : (anchor==="end" ? Lp.lx-tw-padX : Lp.lx-tw/2-padX);
-      g.insert("rect",":first-child")
-        .attr("class","rghit")
-        .attr("x",rx).attr("y",Lp.ly-padY)
-        .attr("width",tw+padX*2).attr("height",padY*2)
-        .attr("rx",6);
-    });
+    // Region labels with leader lines (RLAYOUT is hard-coded in 960x480 space).
+    // Built only when the current president actually defines regions — until
+    // v3 regions are re-derived, the labels are suppressed (they'd all
+    // dead-end at showRegion → goOverview otherwise).
+    if(REGIONS && Object.keys(REGIONS).length){
+      var gL=gMap.append("g");
+      Object.keys(RLAYOUT).forEach(function(r){
+        var Lp=RLAYOUT[r];
+        var g=gL.append("g").attr("class","rglabel").datum(r)
+          .on("click",function(){showRegion(r);});
+        g.append("line").attr("class","rglead")
+          .attr("x1",Lp.lx).attr("y1",Lp.ly).attr("x2",Lp.tx).attr("y2",Lp.ty);
+        g.append("circle").attr("class","rgdot")
+          .attr("cx",Lp.tx).attr("cy",Lp.ty).attr("r",2.4);
+        var anchor = Lp.lx<140 ? "start" : (Lp.lx>820?"end":"middle");
+        var txt=g.append("text")
+          .attr("x",Lp.lx).attr("y",Lp.ly)
+          .attr("text-anchor",anchor)
+          .text(r);
+        var tw=txt.node().getComputedTextLength();
+        var padX=14, padY=13;
+        var rx = anchor==="start" ? Lp.lx-padX : (anchor==="end" ? Lp.lx-tw-padX : Lp.lx-tw/2-padX);
+        g.insert("rect",":first-child")
+          .attr("class","rghit")
+          .attr("x",rx).attr("y",Lp.ly-padY)
+          .attr("width",tw+padX*2).attr("height",padY*2)
+          .attr("rx",6);
+      });
+    }
 
     // Zoom + pan. scaleExtent: 1 = unzoomed (full world), up to 12x.
     // translateExtent keeps the map roughly within the original viewport so
@@ -889,6 +907,22 @@ function closeSheet(){
 function toggleSheet(){
   var dock=document.getElementById("dock");
   if(dock) dock.classList.toggle("sheet-open");
+}
+
+/* Desktop-only: widen the dock panel to ~820px for more reading room.
+   Session state only (no localStorage). Mobile CSS forces width:100%
+   on the bottom sheet, so this class is a desktop affordance. */
+function toggleDockExpand(){
+  var dock=document.getElementById("dock");
+  var btn =document.getElementById("dockExpand");
+  if(!dock) return;
+  var expanded=dock.classList.toggle("expanded");
+  if(btn){
+    btn.setAttribute("aria-pressed", expanded?"true":"false");
+    btn.title = expanded ? "Restore panel" : "Expand panel";
+    btn.setAttribute("aria-label", expanded ? "Restore panel" : "Expand panel");
+    btn.innerHTML = expanded ? "&#10529;" : "&#10530;"; // ⤡ restore vs. ⤢ maximize
+  }
 }
 
 /* ---- country search (uses the global allKeys for the current president) ---- */
@@ -1202,33 +1236,6 @@ function _runQuery(question){
 
 function _escHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
-
-function _fmtNewsDate(s){
-  // GDELT seendate format: "20260523T120000Z"
-  if(!s || s.length < 8) return "";
-  return s.slice(4,6)+"/"+s.slice(6,8)+"/"+s.slice(0,4);
-}
-
-function _loadNews(topic){
-  var el=document.getElementById("newsPanel");
-  if(!el) return;
-  fetch("/api/news?q="+encodeURIComponent(topic))
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      var arts=(data.articles||[]).filter(function(a){return a.title&&a.url;});
-      if(!arts.length){ el.innerHTML=""; return; }
-      var h='<div class="news-head">Recent Headlines</div><ul class="news-list">';
-      arts.forEach(function(a){
-        var date=_fmtNewsDate(a.seendate);
-        h+='<li><a href="'+_escHtml(a.url)+'" target="_blank" rel="noopener">'+
-            _escHtml(a.title)+'</a>'+
-            '<span class="news-meta">'+_escHtml(a.domain||"")+(date?" &middot; "+date:"")+'</span></li>';
-      });
-      h+='</ul>';
-      el.innerHTML=h;
-    })
-    .catch(function(){ el.innerHTML=""; });
 }
 
 function _renderMarkdown(text,el){

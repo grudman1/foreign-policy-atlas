@@ -279,7 +279,29 @@ body{
   overflow:hidden;
   animation:slideInRight .6s cubic-bezier(.2,.7,.2,1) both;
   animation-delay:.12s;
+  transition:width .28s cubic-bezier(.2,.7,.2,1);
 }
+/* Desktop-only: the expand button widens the dock for more reading room.
+   Scoped to (min-width:721px) so it never clobbers the mobile bottom-sheet
+   (which sets width:100% — a mobile-only override below also forces that). */
+@media (min-width:721px){
+  .dock.expanded{ width:min(820px, calc(100vw - 28px)); }
+}
+.dock-expand{
+  margin-left:4px;margin-right:8px;margin-bottom:6px;
+  font-family:inherit;font-size:14px;line-height:1;
+  width:30px;height:28px;padding:0;
+  border:1px solid var(--line);border-radius:8px;
+  background:transparent;color:var(--ink2);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:border-color .15s, color .15s, background .15s;
+}
+.dock-expand:hover{border-color:var(--accent);color:var(--ink)}
+.dock-expand[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.dock-expand:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* Static (non-interactive) region label — same look as .reg but no hover */
+.reg.reg-static{cursor:default}
+.reg.reg-static:hover{color:var(--ink3);text-decoration:none}
 .dock-tabs{
   display:flex;align-items:center;gap:2px;
   padding:8px 8px 0 8px;
@@ -339,13 +361,6 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   border-top:1px dashed var(--line);padding-top:10px}
 .outcome{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
 .outcome h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 10px}
-.news-panel{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;min-height:0}
-.news-head{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 8px}
-.news-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
-.news-list li{display:flex;flex-direction:column;gap:2px}
-.news-list a{font-size:13px;color:var(--ink);line-height:1.45;text-decoration:none}
-.news-list a:hover{color:var(--accent);text-decoration:underline}
-.news-meta{font-size:11px;color:var(--ink3)}
 .ocell{display:flex;gap:9px;margin-bottom:9px;font-size:12.9px;line-height:1.5}
 .otag{flex:none;width:62px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-top:1px}
 .otag.g{color:var(--good)} .otag.m{color:var(--mid)} .otag.b{color:var(--bad)}
@@ -484,6 +499,36 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 .modal-close:hover{background:var(--line2);color:var(--ink)}
 .modal-body{font-size:13px;color:var(--ink2);line-height:1.65;padding-top:6px}
 
+/* ---- Methodology explainer (inside the modal) ---- */
+#methodologyExplainer{padding-top:8px}
+.meth-section{margin:0 0 18px;font-size:13.2px;color:var(--ink2);line-height:1.6}
+.meth-section h3{font-family:var(--font-display);font-size:15.5px;font-weight:600;
+  color:var(--ink);margin:0 0 7px;letter-spacing:-0.005em}
+.meth-section p{margin:0 0 8px}
+.meth-section p:last-child{margin-bottom:0}
+.meth-section--featured{background:var(--chip);border-radius:12px;
+  padding:14px 16px;border-left:3px solid var(--accent)}
+.meth-list{margin:6px 0 8px;padding-left:22px}
+.meth-list li{margin-bottom:4px}
+.meth-pipeline{margin:6px 0 8px;padding-left:22px}
+.meth-pipeline li{margin-bottom:6px}
+.meth-tables{display:flex;flex-direction:column;gap:12px;margin:8px 0 10px}
+.meth-table{background:var(--chip);border-radius:10px;padding:10px 12px}
+.meth-table-h{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink3);font-weight:600;margin-bottom:6px}
+.meth-table table{width:100%;border-collapse:collapse;font-size:12.5px}
+.meth-table td{padding:3px 8px 3px 0;vertical-align:middle;color:var(--ink2)}
+.meth-table td:first-child{white-space:nowrap}
+.meth-table td .sw{display:inline-block;width:11px;height:11px;border-radius:3px;
+  margin-right:8px;vertical-align:-2px}
+.meth-glyph{font-weight:700;font-size:14px;color:var(--ink);width:20px;text-align:center}
+.meth-section code{font-family:Menlo,Consolas,monospace;font-size:11.5px;
+  background:var(--line2);padding:1px 5px;border-radius:4px;color:var(--ink)}
+.meth-divider{border:0;border-top:1px solid var(--line);margin:18px 0 12px}
+.meth-note-head{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--ink3);font-weight:600;margin:0 0 7px}
+.meth-foot{font-size:12.2px;color:var(--ink3);line-height:1.6}
+
 /* ---- Animations ---- */
 @keyframes slideDown{from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:none}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:none}}
@@ -533,6 +578,11 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
     transition:transform .35s cubic-bezier(.2,.8,.2,1);
   }
   .dock.sheet-open{transform:translateY(0)}
+  /* Mobile guards: the expand button is a desktop affordance; the bottom
+     sheet handles full-screen via the drag handle. Force width:100% so a
+     stuck .expanded class can't shrink the sheet. */
+  .dock-expand{display:none}
+  .dock.expanded{width:100%}
   .dock-handle{
     display:flex;align-items:center;justify-content:center;
     width:100%;padding:8px 0 4px;
@@ -616,6 +666,8 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
     <button id="tabAskAI" class="dock-tab" role="tab" aria-selected="false"
             aria-controls="paneAskAI" onclick="setTab('askai')">Ask AI</button>
     <button class="dock-overview" type="button" onclick="goOverview()" title="Clear selection">Overview</button>
+    <button class="dock-expand" id="dockExpand" type="button" onclick="toggleDockExpand()"
+            aria-pressed="false" title="Expand panel" aria-label="Expand panel">&#10530;</button>
   </div>
   <div class="dock-body">
     <div class="dock-pane on" id="paneDossier" role="tabpanel" aria-labelledby="tabDossier">
@@ -642,15 +694,130 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   </div>
 </aside>
 
-<!-- Methodology modal (holds the foot/caveats content) -->
+<!-- Methodology modal: the flagship explainer of the model + the authoring
+     pipeline. The per-dataset note (#foot, populated by renderHeader from
+     P.foot) sits at the bottom as a small subordinate annotation. -->
 <div class="modal" id="methodologyModal" hidden role="dialog" aria-modal="true" aria-labelledby="methodologyTitle">
   <div class="modal-backdrop" onclick="closeMethodology()"></div>
   <div class="modal-panel">
     <header class="modal-head">
-      <h2 id="methodologyTitle">Method &amp; caveats</h2>
+      <h2 id="methodologyTitle">How this atlas is built</h2>
       <button class="modal-close" type="button" onclick="closeMethodology()" aria-label="Close">&times;</button>
     </header>
-    <div id="foot" class="modal-body"></div>
+
+    <div id="methodologyExplainer" class="meth">
+
+      <section class="meth-section">
+        <h3>What this is</h3>
+        <p>An interactive, president-by-president assessment of U.S. foreign policy. The central question is causal: <em>did this president improve or worsen America's strategic position with respect to each country, relative to the trajectory already in motion when they took office?</em></p>
+        <p>The map reads on two independent axes: <b>color</b> is where the relationship stands now; the <b>arrow</b> is what this president caused, measured against the trajectory they inherited. This is not a warmth scoreboard, and not advocacy in either direction.</p>
+      </section>
+
+      <section class="meth-section">
+        <h3>The two axes</h3>
+        <div class="meth-tables">
+          <div class="meth-table">
+            <div class="meth-table-h">State (color) &mdash; where the relationship stands today</div>
+            <table>
+              <tbody>
+                <tr><td><span class="sw" style="background:var(--s-core)"></span>core-ally</td><td>treaty-level or institutionally deep</td></tr>
+                <tr><td><span class="sw" style="background:var(--s-aligned)"></span>aligned</td><td>partner; moving together on most issues</td></tr>
+                <tr><td><span class="sw" style="background:var(--s-neutral)"></span>neutral</td><td>transactional; no strong pull either way</td></tr>
+                <tr><td><span class="sw" style="background:var(--s-strained)"></span>strained</td><td>cooling, damaged, or low-engagement</td></tr>
+                <tr><td><span class="sw" style="background:var(--s-adversarial)"></span>adversarial</td><td>active rivalry or hostility</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="meth-table">
+            <div class="meth-table-h">Effect (arrow) &mdash; what this president caused vs. the inherited path</div>
+            <table>
+              <tbody>
+                <tr><td class="meth-glyph">&#8593;</td><td><b>helped</b></td><td>improved the US position vs. the inherited path</td></tr>
+                <tr><td class="meth-glyph">&mdash;</td><td><b>mixed</b></td><td>net effect is genuinely mixed, offsetting, or unclear</td></tr>
+                <tr><td class="meth-glyph">&#8595;</td><td><b>hurt</b></td><td>worsened the US position vs. the inherited path</td></tr>
+                <tr><td class="meth-glyph">&middot;</td><td><b>unscored</b></td><td>deliberately off the scoreboard (see below)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p><b>Magnitude</b> (<i>modest</i> / <i>material</i> / <i>major</i>) applies only to <i>helped</i> / <i>hurt</i> and shows in the arrow's weight on the map. The two axes are independent &mdash; the combination is the point: a country can be adversarial-but-helped (an enemy handled well), or core-ally-but-hurt (a friend damaged).</p>
+      </section>
+
+      <section class="meth-section">
+        <h3>The counterfactual</h3>
+        <p>Every effect is measured against <b>one fixed counterfactual</b>: the continuation of the inherited trajectory, absent the president's major policy changes. That trajectory is recorded in each entry's <code>inherited</code> field. We don't shop for a flattering or damning counterfactual &mdash; the inherited path is the only baseline.</p>
+      </section>
+
+      <section class="meth-section">
+        <h3>Outcome vs. effect</h3>
+        <p><b>Outcome</b> describes what happened to the U.S. position. <b>Effect</b> describes what the president caused. A good outcome a president merely inherited is not "helped" &mdash; the effect is "mixed" with role <i>Inheritor</i>. A bad outcome the president could not have changed is not "hurt." <b>Credit and blame are applied symmetrically</b> &mdash; to wins, losses, allies, and adversaries.</p>
+      </section>
+
+      <section class="meth-section">
+        <h3>Honest blanks</h3>
+        <p>Not every country needs a scored effect. Setting <code>effect: "unscored"</code> with a reason is more credible than manufacturing a judgment. The four reasons:</p>
+        <ul class="meth-list">
+          <li><b>no material effect</b> &mdash; nothing of strategic consequence happened</li>
+          <li><b>not driven by the president</b> &mdash; things changed, but not because of the president</li>
+          <li><b>systemic forces only</b> &mdash; driven by global or structural forces</li>
+          <li><b>insufficient evidence</b> &mdash; we cannot source a defensible call</li>
+        </ul>
+        <p><em>An honest blank beats a guess.</em> <b>Triage-fairness rule:</b> if we score the comparable wins, we score the comparable losses, and vice versa. Neglect can itself be the critique &mdash; a president who ignored a country where engagement mattered is "hurt" (role <i>Neglect</i>), not "unscored."</p>
+      </section>
+
+      <section class="meth-section meth-section--featured">
+        <h3>How each entry is made</h3>
+        <p>Every entry runs through a sourced, multi-model pipeline designed to guard against the LLM failure mode: a well-written, plausible, <em>unsourced</em> claim. <b>Claims are fetched, not recalled.</b></p>
+        <ol class="meth-pipeline">
+          <li><b>Researcher</b> &mdash; builds a dated, web-sourced evidence pack from primary reporting.</li>
+          <li><b>Analyst</b> &mdash; drafts the entry from that pack only. No recall from training data.</li>
+          <li><b>Red-team</b> &mdash; a model in a <em>different</em> family adversarially attacks the call (state, effect, magnitude, attribution).</li>
+          <li><b>Editor</b> &mdash; reconciles analyst and red-team reads.</li>
+          <li><b>Calibrator</b> &mdash; audits consistency: does the same standard apply to wins and losses, allies and adversaries?</li>
+        </ol>
+        <p>When analyst and red-team disagree on a marquee call, a human adjudicates.</p>
+      </section>
+
+      <section class="meth-section">
+        <h3>Honesty built in</h3>
+        <ul class="meth-list">
+          <li>Every scored entry carries its strongest <b>counterargument</b> &mdash; the case for the opposite scoring.</li>
+          <li><b>Contested</b> calls are flagged ("reasonable analysts could score this differently").</li>
+          <li>No partisan framing; loaded adjectives in either direction get cut.</li>
+          <li>Where a placement is set at the <b>editor's direction</b> against the stricter analytic read, the entry says so.</li>
+          <li>Where the sign of an effect depends on which grand-strategy school you hold (primacy / liberal-internationalist / restraint), the entry discloses that in <code>grandStrategyDispute</code> rather than silently picking one.</li>
+        </ul>
+      </section>
+
+      <section class="meth-section">
+        <h3>Scoring tools</h3>
+        <p><b>The five levers</b> &mdash; a checklist, not a weighted formula; scored only where relevant:</p>
+        <ol class="meth-list">
+          <li><b>Security / threat</b> &mdash; deterrence, force posture, war/peace</li>
+          <li><b>Leverage / dependence</b> &mdash; who needs whom; coercive leverage gained or lost</li>
+          <li><b>Rival-denial</b> &mdash; denied China / Russia / Iran a foothold, or handed them one</li>
+          <li><b>Coalition / institutional</b> &mdash; alliances, blocs, institutions strengthened or eroded</li>
+          <li><b>Economic / tech</b> &mdash; trade, capital, critical minerals, technology standards</li>
+        </ol>
+        <p><b>Role taxonomy</b> (how the president related to the outcome): Architect, Accelerator, Closer, Stabilizer / Active Stabilizer, Inheritor, Bystander, Neglect, Spoiler.</p>
+      </section>
+
+      <section class="meth-section">
+        <h3>Known limitations</h3>
+        <ul class="meth-list">
+          <li><b>Omission bias.</b> Errors of commission (things done) are easier to see than errors of omission (things neglected). The fixed counterfactual helps but does not eliminate this.</li>
+          <li><b>Triage-selection bias.</b> What we choose to score, and what we leave unscored, is itself a judgment.</li>
+          <li><b>Grand-strategy tilt.</b> Some effects only have a clear sign once you assume a school of grand strategy.</li>
+          <li><b>Projections, not predictions.</b> Best / base / downside outcome lines are explicitly projections &mdash; the spread is the point.</li>
+        </ul>
+      </section>
+
+    </div>
+
+    <hr class="meth-divider">
+    <h3 class="meth-note-head">For this dataset</h3>
+    <div id="foot" class="meth-foot"></div>
+
   </div>
 </div>
 

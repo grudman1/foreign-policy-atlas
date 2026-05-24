@@ -64,7 +64,13 @@ window.PRESIDENTS["trump"].dossier["China"] = {
 
   outcome: "An escalate-then-truce cycle that left the U.S. position roughly where it stood structurally inside an unresolved rivalry. Average China tariffs rose ~21%→~50% (real imports down ~28%), then the IEEPA basis was struck by the Supreme Court (Feb 20 2026) and partly rebuilt via Section 122/301. China demonstrated and then suspended (not resolved) its rare-earth chokepoint at Busan. Two summits (Busan Oct 2025; Beijing May 2026) produced a shallow, time-bound truce plus soybean/Boeing/ag deliverables, a 'strategic stability' pledge, and a TikTok JV — while the competition framework, tech controls, and record PLA pressure on Taiwan persisted. Most commitments expire by Nov 10 2026.",
 
-  inherited: "Biden's 'Invest, Align, Compete' framework (Carnegie: 'positive overall'): tariffs already ~21%, export/outbound-investment controls already steepening, fentanyl cooperation secured at the Nov 2023 summit with 2024 precursor-scheduling momentum, a post-Lai (May 2024) PLA escalation trajectory, and structural Chinese weakness (property, deflation, overcapacity).",
+  inherited: [
+    "Biden's 'Invest, Align, Compete' framework — judged at the time by Carnegie as 'positive overall.'",
+    "Tariffs already ~21%, with export and outbound-investment controls steepening.",
+    "Fentanyl cooperation secured at the Nov 2023 summit, with 2024 precursor-scheduling momentum.",
+    "Post-Lai (May 2024) PLA escalation trajectory on Taiwan.",
+    "Structural Chinese weakness — property crisis, deflation, overcapacity."
+  ],
 
   points: [
     "Trump's fast, high tariffs pushed the average China tariff ~21%→~50% and cut real U.S. imports from China ~28% in 2025 — reduced dependence by one reading, broad disruption by another [PIIE, Mar 16 2026]",

@@ -338,6 +338,46 @@ body{
 .pinner{padding:18px 20px 22px;overflow-y:auto;overflow-x:hidden;max-height:100%;pointer-events:auto}
 .aspane{padding:16px 18px 20px;overflow-y:auto;overflow-x:hidden;max-height:100%;pointer-events:auto}
 
+/* ---- Dock visibility: hidden when nothing is selected ----
+   Augments the base .dock transition with transform + opacity so the slide-out
+   animates. When .dock-hidden is on, the dock translates off-screen, fades,
+   and gives up pointer events so the map underneath stays interactive. */
+.dock{transition:transform .28s cubic-bezier(.2,.7,.2,1),
+                 opacity .22s ease,
+                 width .28s cubic-bezier(.2,.7,.2,1)}
+.dock.dock-hidden{
+  /* Suppress the initial-mount slideInRight animation so the dock doesn't
+     briefly fly in from the right before snapping off-screen on first load. */
+  animation:none;
+  transform:translateX(calc(100% + 28px));
+  opacity:0;pointer-events:none;
+}
+
+/* ---- Floating "Panel" toggle (visible only when the dock is hidden) ----
+   Same glass treatment as the search and legend cards. Clicking it brings the
+   dock back, defaulting to the Ask AI tab so the empty Dossier state isn't
+   the first thing the user lands on. */
+.dock-open-btn{
+  position:fixed;top:78px;right:14px;z-index:18;
+  display:inline-flex;align-items:center;gap:8px;
+  padding:9px 16px;
+  background:var(--panel-glass);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border:1px solid var(--line);
+  border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-float);
+  font-family:inherit;font-size:12.5px;font-weight:500;
+  color:var(--ink2);cursor:pointer;
+  transition:border-color .15s, color .15s, background .15s, transform .15s;
+}
+.dock-open-btn[hidden]{display:none}
+.dock-open-btn:hover{border-color:var(--accent);color:var(--ink);
+  background:var(--accent-soft)}
+.dock-open-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dock-open-glyph{font-size:11px;color:var(--ink3);transition:color .15s;line-height:1}
+.dock-open-btn:hover .dock-open-glyph{color:var(--accent)}
+
 /* ---- Dossier content (preserves every credibility signal) ---- */
 .ph{display:flex;align-items:center;gap:9px;margin-bottom:4px}
 .ph .sw{width:14px;height:14px}
@@ -378,7 +418,14 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   border-radius:10px;font-size:12.7px;line-height:1.55;color:var(--ink2);
   border-left:3px solid var(--mid)}
 .counterarg .blab{display:block;font-size:10px;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:4px}
+  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:6px}
+/* Outcome (continued) — the rest of the `outcome` paragraph that didn't fit in
+   the Inherited→Now "Now" line. Same chip treatment as .counterarg but neutral
+   (no left accent) since it's continuation rather than a flagged alternative. */
+.outcome-rest{margin:10px 0 13px;padding:10px 12px;background:var(--chip);
+  border-radius:10px;font-size:13px;line-height:1.55;color:var(--ink2)}
+.outcome-rest .blab{display:block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:6px}
 .userdir{margin:10px 0 13px;padding:10px 12px;background:var(--chip);
   border-radius:10px;font-size:12.5px;line-height:1.5;color:var(--ink2);
   border-left:3px solid var(--bad)}
@@ -402,6 +449,26 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   transition:border-color .12s, color .12s, background .12s}
 .linkchip:hover{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
 
+/* ---- Prose-block primitives — used everywhere prose is rendered (Inherited
+   row, Now row, outcome remainder, counterargument). The principle: don't mix
+   bullets and sentences in a single block. Authors choose by value shape
+   (string vs. array) and the renderer routes through these classes. Font-size
+   and color inherit so each parent container (inh-row, counterarg,
+   outcome-rest) sets its own typography. */
+.prose-p{margin:0 0 8px;line-height:1.6;color:inherit;font-size:inherit}
+.prose-p:last-child{margin-bottom:0}
+.prose-bullets{margin:0;padding:0;list-style:none}
+.prose-bullets > li{
+  position:relative;padding:6px 0 6px 18px;
+  line-height:1.55;color:inherit;font-size:inherit;
+}
+.prose-bullets > li + li{border-top:1px solid var(--line2)}
+.prose-bullets > li:before{
+  content:"";position:absolute;left:4px;top:14px;
+  width:5px;height:5px;border-radius:50%;background:currentColor;
+  opacity:.5;
+}
+
 /* ---- v3 redesign: at-a-glance Inherited → Now block ----
    Replaces the standalone .baseline and .outcome-line blocks. Two stacked rows
    separated by a thin divider; left accent bar visually anchors it as the
@@ -413,15 +480,17 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   padding:14px 16px;
   border-left:3px solid var(--accent);
 }
+.inh-row{font-size:13.5px}
 .inh-row + .inh-row{
   margin-top:11px;padding-top:11px;
   border-top:1px solid var(--line);
 }
 .inh-lab{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;
-  color:var(--ink3);font-weight:600;margin-bottom:5px}
-.inh-text{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink)}
-.inh-before .inh-text{color:var(--ink2)}
-.inh-after  .inh-text{color:var(--ink);font-weight:500}
+  color:var(--ink3);font-weight:600;margin-bottom:6px}
+.inh-before{color:var(--ink2)}
+.inh-after{color:var(--ink)}
+.inh-after .prose-p,
+.inh-after .prose-bullets > li{font-weight:500}
 
 /* ---- v3 redesign: collapsible drill-down sections (<details>) ----
    Editorial accordion: thin top divider, uppercase title, chevron rotates on
@@ -633,6 +702,15 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
     transition:transform .35s cubic-bezier(.2,.8,.2,1);
   }
   .dock.sheet-open{transform:translateY(0)}
+  /* Hidden state on mobile = slide all the way off the bottom (overriding the
+     peek transform set above). */
+  .dock.dock-hidden{transform:translateY(100%)}
+  /* The floating "Panel" button drops to the bottom-right on mobile so it sits
+     above the thumb zone rather than competing with the top legend/search. */
+  .dock-open-btn{
+    top:auto;right:14px;bottom:16px;
+    padding:9px 14px;font-size:12px;
+  }
   /* Mobile guards: the expand button is a desktop affordance; the bottom
      sheet handles full-screen via the drag handle. Force width:100% so a
      stuck .expanded class can't shrink the sheet. */
@@ -748,6 +826,16 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
     </div>
   </div>
 </aside>
+
+<!-- Floating "Panel" button: visible only while the dock is hidden (no
+     selection). Clicking it brings the dock back, defaulting to the Ask AI
+     tab so the user can ask global questions without first picking a country.
+     `hidden` by default — _setDockHidden() toggles this attribute. -->
+<button class="dock-open-btn" id="dockOpenBtn" type="button" onclick="openDockManual()" hidden
+        aria-label="Open panel">
+  <span class="dock-open-glyph" aria-hidden="true">&#10094;</span>
+  <span class="dock-open-label">Panel</span>
+</button>
 
 <!-- Methodology modal: the flagship explainer of the model + the authoring
      pipeline. The per-dataset note (#foot, populated by renderHeader from

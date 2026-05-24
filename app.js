@@ -189,6 +189,7 @@ var RLAYOUT={
 /* ---- shared UI / map state ---- */
 var hiddenState={}, hiddenEffect={}, selName=null, selRegion=null, tab="country", svgSel=null;
 var _zoomK=1;  // current zoom transform.k; used by paintDeltas for screen-space arrow promotion
+var _panMoved=false;  // true if the current pointer interaction has moved (drag), so the trailing .panbg click is suppressed
 var ALLFEATS=null, REGIONFEATS=null, FEATFORKEY=null, nameToFeat={}, gOut=null, gD=null, geoPath=null;
 
 /* ---- current-president state (reassigned by loadPresident) ---- */
@@ -433,15 +434,19 @@ function _buildLeversHtml(d){
     LEVER_ORDER.forEach(function(id){
       var prose=d.levers[id];
       if(prose && prose!=="—"){
-        rows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+prose+'</div>';
+        // _renderProseBlock paragraph-splits multi-sentence lever values so
+        // they don't read as one run-on wall under the label.
+        rows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+
+              _renderProseBlock(prose)+'</div>';
       }
     });
   } else if(Array.isArray(d.levers) && d.levers.length){
     d.levers.forEach(function(L){
       if(!L || !L.lever) return;
       var label=LEVER_LABEL[L.lever]||L.lever;
-      var sign =L.sign ? ' &middot; '+_escHtml(L.sign) : '';
-      rows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+sign+'</div>';
+      var sign =L.sign ? _escHtml(L.sign) : '';
+      rows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+
+            (sign?'<p class="prose-p">'+sign+'</p>':'')+'</div>';
     });
   }
   return rows;
@@ -586,7 +591,10 @@ function showCountry(name){
   CONDITIONAL_NOTE_ORDER.forEach(function(field){
     var v=d[field];
     if(v && v!=="—"){
-      anHtml += '<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+v+'</div>';
+      // _renderProseBlock paragraph-splits multi-sentence notes so the label
+      // sits on its own line above clean paragraphs (not a run-on wall).
+      anHtml += '<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+
+                _renderProseBlock(v)+'</div>';
     }
   });
   if(d.userDirected){
@@ -1002,9 +1010,20 @@ function startMap(){
       .attr("preserveAspectRatio","xMidYMid slice")
       .attr("role","img").attr("aria-label","World map of US alignment");
 
-    // Invisible background rect so drag-to-pan works when starting from ocean
+    // Invisible background rect — does two jobs:
+    //   1. Makes drag-to-pan work when starting from open ocean (d3.zoom
+    //      needs an element to grab).
+    //   2. Treats a click on the ocean as "click off the current selection",
+    //      mirroring the map-app convention. The drag-vs-click distinction
+    //      is gated on `_panMoved`, set by the zoom callbacks below — a true
+    //      drag suppresses the trailing click, while a quick tap fires it.
     svgSel.append("rect").attr("class","panbg")
-      .attr("width",960).attr("height",480).attr("fill","transparent");
+      .attr("width",960).attr("height",480).attr("fill","transparent")
+      .on("click", function(){
+        if(_panMoved){ _panMoved=false; return; }
+        if(selName || selRegion) clearSelection();
+        else _setDockHidden(true);   // already empty, just collapse the panel
+      });
 
     // Single transform group that gets the zoom/pan; all map layers live inside it
     var gMap = svgSel.append("g").attr("class","zoom-group");
@@ -1087,12 +1106,19 @@ function startMap(){
     // Zoom + pan. scaleExtent: 1 = unzoomed (full world), up to 12x.
     // translateExtent keeps the map roughly within the original viewport so
     // you can't pan the world off-screen.
+    // The "start" handler resets _panMoved; the "zoom" handler sets it to
+    // true on any pointer-driven movement. The panbg click handler reads
+    // _panMoved to tell a drag from a tap, so panning the map doesn't
+    // accidentally clear the user's selection.
     _mapZoom = d3.zoom()
       .scaleExtent([1, 12])
       .translateExtent([[-100,-100],[1060,580]])
+      .on("start", function(){ _panMoved = false; })
       .on("zoom", function(event){
         gMap.attr("transform", event.transform);
         if(event.transform.k !== _zoomK){ _zoomK=event.transform.k; paintDeltas(); }
+        var src = event.sourceEvent;
+        if(src && (src.type === "mousemove" || src.type === "touchmove")) _panMoved = true;
       });
     svgSel.call(_mapZoom);
     // Disable D3's default double-click-to-zoom; we use the button for reset.
@@ -1120,6 +1146,16 @@ function goOverview(){
   setTab("dossier");
   clearPanel();
   resetMapZoom();
+}
+
+/* Clear selection WITHOUT resetting the map zoom. Used for ocean clicks where
+   the user is signaling "close this dossier" but not "go back to the full
+   world view" — they're likely still inspecting a region they've zoomed into. */
+function clearSelection(){
+  selName=null; selRegion=null;
+  paint(); paintDeltas();
+  setTab("dossier");
+  clearPanel();  // hides the dock via _setDockHidden(true)
 }
 
 /* ---- floating chrome helpers (legend, methodology modal, mobile sheet) ---- */

@@ -304,6 +304,71 @@ function outcomeBlock(k){
     '<div class="ocell"><span class="otag b">Downside</span><span>'+o.down+'</span></div></div>';
 }
 
+/* ---- Dossier v3 redesign: helpers for the "summary + drill-down" layout ----
+   The dossier used to render every section expanded — inherited, outcome, 8
+   sourced points, counterargument, 5 lever rows, meta chips, conditional notes,
+   sources, etc. — and a reader had to scan the whole thing to find the gist.
+   The new layout shows an at-a-glance summary (badges + Inherited → Now
+   contrast) and tucks everything else into collapsible <details> sections.   */
+
+/* Split `outcome` at the first sentence boundary so the at-a-glance "Now" line
+   stays short; the rest (if any) drops into the drill-down. The regex skips
+   abbreviations like "U.S.", "U.N.", "Sept." by requiring the char before the
+   period to be lowercase / a digit / a closing bracket-or-quote, AND the char
+   after the space to be uppercase. */
+function _splitOutcomeHeadline(text){
+  if(!text) return {first:"", rest:""};
+  var re = /([a-z\d\)\]"’”])([.!?])(\s+)([A-Z])/;
+  var m = re.exec(text);
+  if(!m) return {first: text.trim(), rest: ""};
+  var endIdx = m.index + m[1].length + m[2].length;
+  return {
+    first: text.slice(0, endIdx).trim(),
+    rest:  text.slice(endIdx).trim()
+  };
+}
+
+/* Wrap arbitrary HTML in a collapsible <details> section. Returns "" when the
+   content is empty so callers can append unconditionally without `if` guards.
+   `meta` is an optional small counter (e.g. "8 sources") rendered next to the
+   title so closed sections still telegraph what's inside. */
+function _detailsSection(title, contentHtml, meta){
+  if(!contentHtml || !contentHtml.trim()) return "";
+  var metaHtml = meta ? '<span class="dsec-meta">'+_escHtml(meta)+'</span>' : '';
+  return '<details class="dsec">'+
+         '<summary class="dsec-h">'+
+           '<span class="dsec-title">'+_escHtml(title)+'</span>'+
+           metaHtml+
+           '<span class="dsec-chev" aria-hidden="true">&#8964;</span>'+
+         '</summary>'+
+         '<div class="dsec-body">'+contentHtml+'</div>'+
+         '</details>';
+}
+
+/* Build the lever rows (object form preferred; legacy array form supported).
+   Returns "" when nothing renders, so the result can flow straight into
+   _detailsSection without an extra empty-check. */
+function _buildLeversHtml(d){
+  if(!d || !d.levers) return "";
+  var rows="";
+  if(!Array.isArray(d.levers) && typeof d.levers === "object"){
+    LEVER_ORDER.forEach(function(id){
+      var prose=d.levers[id];
+      if(prose && prose!=="—"){
+        rows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+prose+'</div>';
+      }
+    });
+  } else if(Array.isArray(d.levers) && d.levers.length){
+    d.levers.forEach(function(L){
+      if(!L || !L.lever) return;
+      var label=LEVER_LABEL[L.lever]||L.lever;
+      var sign =L.sign ? ' &middot; '+_escHtml(L.sign) : '';
+      rows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+sign+'</div>';
+    });
+  }
+  return rows;
+}
+
 function showCountry(name){
   setTabSilent("country");
   selRegion=null;
@@ -319,23 +384,30 @@ function showCountry(name){
   var sDesc =STATE_DESC [d.state]||"";
 
   // v3 fields with v2 back-compat
-  var eff       = effectOf(d);            // helped|mixed|hurt|unscored
-  var mag       = magnitudeOf(d);          // modest|material|major|null
-  var inherited = inheritedOf(d);          // v3 inherited || v2 baseline
-  var contested = isContestedEntry(d);     // v3 contested || trailing "interp"
-  var pts       = pointsOf(d);             // points minus the "interp" sentinel
+  var eff       = effectOf(d);
+  var mag       = magnitudeOf(d);
+  var inherited = inheritedOf(d);
+  var contested = isContestedEntry(d);
+  var pts       = pointsOf(d);
   var safeReg   = (d.region||"").replace(/'/g,"\\'");
+
+  // Outcome split: the first sentence becomes the at-a-glance "Now" line; any
+  // remainder drops into the "Why this scoring" drill-down so the summary
+  // stays short even when the full outcome is paragraph-length.
+  var outFull  = (d.outcome && d.outcome!=="—") ? d.outcome : "";
+  var outSplit = _splitOutcomeHeadline(outFull);
 
   var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+_escHtml(k)+'</h2></div>';
 
-  // ----- Badges: state always; effect when the entry has been scored -----
+  // ===== SUMMARY (always visible): badges + region + Inherited → Now =========
+
+  // ----- Badges: state, effect, plus honesty pills (contested / editor-directed).
+  // The honesty pills must surface in the summary per CLAUDE.md's "mark
+  // contested calls" rule — burying them in a closed section would hide them.
   if(d.state!=="us"){
     html+='<div class="badges">';
     html+='<span class="badge"><span class="sw" style="background:var('+sColor+')"></span>'+
       '<b>'+_escHtml(sName)+'</b>'+(sDesc?' &middot; '+_escHtml(sDesc):'')+'</span>';
-    // Effect badge — only rendered when the entry actually carries an `effect`
-    // field. v2 entries (no `effect`) keep a clean state-only header until
-    // they've been re-derived to v3.
     if(d.effect && EFFECT_NAME[d.effect]){
       var effLabel = EFFECT_NAME[d.effect];
       if(mag) effLabel += ' &middot; '+_escHtml(MAGNITUDE_NAME[mag]||mag);
@@ -343,14 +415,18 @@ function showCountry(name){
         effLabel += ' &middot; '+_escHtml(UNSCORED_REASON_NAME[d.unscoredReason]);
       }
       html+='<span class="badge"><span class="darr" data-effect="'+d.effect+'">'+EFFECT_GLYPH[d.effect]+'</span>'+
-            '<b>'+effLabel+'</b> &middot; net effect vs. inherited trajectory</span>';
+            '<b>'+effLabel+'</b></span>';
+    }
+    if(contested){
+      html+='<span class="badge badge-warn" title="Reasonable analysts could score this differently">contested</span>';
+    }
+    if(d.userDirected){
+      html+='<span class="badge badge-warn" title="Set at editor\'s direction against the stricter analytic read">editor-directed</span>';
     }
     html+='</div>';
   }
 
-  // Region link is interactive only when the current president actually has a
-  // regions block. Until v3 regions are re-derived, render the region name as
-  // a plain non-interactive label rather than a dead link.
+  // Region link (interactive when the president defines regions, else a plain label).
   if(d.region){
     if(REGIONS && REGIONS[d.region]){
       html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+_escHtml(d.region)+' &rsaquo; view region</div>';
@@ -359,101 +435,100 @@ function showCountry(name){
     }
   }
 
-  // ----- Inherited trajectory (the fixed counterfactual) -----
-  if(inherited){
-    html+='<div class="baseline"><span class="blab">Inherited trajectory (the counterfactual)</span>'+inherited+'</div>';
-  }
-
-  // ----- Outcome line: what HAPPENED to the US position (distinct from the
-  //       causal points, and distinct from the OUTCOMES best/base/down block) -----
-  if(d.outcome && d.outcome!=="—"){
-    html+='<div class="outcome-line"><span class="blab">What happened to the US position</span>'+d.outcome+'</div>';
-  }
-
-  // ----- Points: the causal argument -----
-  if(pts.length){
-    html+='<ul class="pts" style="--dotc:var('+sColor+')">';
-    pts.forEach(function(p){html+='<li>'+p+'</li>';});
-    html+='</ul>';
-  }
-
-  // ----- Counterargument -----
-  if(d.counterargument && d.counterargument!=="—"){
-    html+='<div class="counterarg"><span class="blab">Strongest counterargument</span>'+d.counterargument+'</div>';
-  }
-
-  // ----- Five levers (v3 object form; back-compat to legacy array) -----
-  if(d.levers){
-    if(!Array.isArray(d.levers) && typeof d.levers === "object"){
-      // Object form: keyed by lever id, value is short prose.
-      var leverRows="";
-      LEVER_ORDER.forEach(function(id){
-        var prose=d.levers[id];
-        if(prose && prose!=="—"){
-          leverRows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+prose+'</div>';
-        }
-      });
-      if(leverRows){
-        html+='<div class="sech">Five levers</div>'+leverRows;
-      }
-    } else if(Array.isArray(d.levers) && d.levers.length){
-      // Legacy array form: [{lever, sign}]. Renders as label · sign so
-      // nothing breaks while data is migrating to the object shape.
-      var legacyRows="";
-      d.levers.forEach(function(L){
-        if(!L || !L.lever) return;
-        var label=LEVER_LABEL[L.lever]||L.lever;
-        var sign =L.sign ? ' &middot; '+_escHtml(L.sign) : '';
-        legacyRows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+sign+'</div>';
-      });
-      if(legacyRows){
-        html+='<div class="sech">Five levers</div>'+legacyRows;
-      }
+  // ----- Inherited → Now: the counterfactual contrast at a glance. Replaces
+  // the separate .baseline and .outcome-line blocks. Only renders when at
+  // least one of the two sides has content; e.g. the US home entry suppresses
+  // both and shows nothing here.
+  var hasInh = !!inherited, hasOut = !!outSplit.first;
+  if(hasInh || hasOut){
+    html+='<div class="inh-now">';
+    if(hasInh){
+      html+='<div class="inh-row inh-before">'+
+            '<span class="inh-lab">Inherited trajectory</span>'+
+            '<p class="inh-text">'+inherited+'</p>'+
+            '</div>';
     }
-  }
-
-  // ----- Meta chips: Role · Confidence · Evidence -----
-  var metaChips=[];
-  if(d.role)                            metaChips.push({lab:'Role',       val:d.role});
-  if(d.confidence)                      metaChips.push({lab:'Confidence', val:d.confidence});
-  if(d.evidence)                        metaChips.push({lab:'Evidence',   val:d.evidence});
-  if(metaChips.length){
-    html+='<div class="metachips">';
-    metaChips.forEach(function(c){
-      html+='<span class="metachip"><span class="mclab">'+c.lab+'</span><span class="mcval">'+_escHtml(c.val)+'</span></span>';
-    });
+    if(hasOut){
+      html+='<div class="inh-row inh-after">'+
+            '<span class="inh-lab">Now &mdash; under this president</span>'+
+            '<p class="inh-text">'+outSplit.first+'</p>'+
+            '</div>';
+    }
     html+='</div>';
   }
 
-  // ----- Conditional analytic notes, each a labelled single-line block -----
+  // ===== DRILL-DOWN (collapsed by default) ===================================
+
+  // ----- Why this scoring: outcome remainder, causal points, counterargument.
+  var whyHtml = "";
+  if(outSplit.rest){
+    whyHtml += '<div class="condnote"><span class="condnote-lab">Outcome (cont.)</span>'+outSplit.rest+'</div>';
+  }
+  if(pts.length){
+    if(whyHtml) whyHtml += '<div class="dsec-sublab">Causal argument</div>';
+    whyHtml += '<ul class="pts" style="--dotc:var('+sColor+')">';
+    pts.forEach(function(p){whyHtml+='<li>'+p+'</li>';});
+    whyHtml += '</ul>';
+  }
+  if(d.counterargument && d.counterargument!=="—"){
+    whyHtml += '<div class="counterarg"><span class="blab">Strongest counterargument</span>'+d.counterargument+'</div>';
+  }
+  var whyMeta = pts.length ? (pts.length+" point"+(pts.length===1?"":"s")) : "";
+  html += _detailsSection("Why this scoring", whyHtml, whyMeta);
+
+  // ----- Five levers (v3 object form; back-compat to legacy array form).
+  html += _detailsSection("Five levers", _buildLeversHtml(d));
+
+  // ----- Analytic notes: meta chips (role/confidence/evidence) + conditional
+  // notes (durability, opportunity cost, escalation risk, …) + user-directed
+  // explanation + the full contested note.
+  var anHtml = "";
+  var metaChips=[];
+  if(d.role)        metaChips.push({lab:'Role',       val:d.role});
+  if(d.confidence)  metaChips.push({lab:'Confidence', val:d.confidence});
+  if(d.evidence)    metaChips.push({lab:'Evidence',   val:d.evidence});
+  if(metaChips.length){
+    anHtml += '<div class="metachips">';
+    metaChips.forEach(function(c){
+      anHtml += '<span class="metachip"><span class="mclab">'+c.lab+'</span><span class="mcval">'+_escHtml(c.val)+'</span></span>';
+    });
+    anHtml += '</div>';
+  }
   CONDITIONAL_NOTE_ORDER.forEach(function(field){
     var v=d[field];
     if(v && v!=="—"){
-      html+='<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+v+'</div>';
+      anHtml += '<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+v+'</div>';
     }
   });
-
-  // ----- User-directed placement (Venezuela template) -----
   if(d.userDirected){
-    html+='<div class="userdir"><span class="blab">User-directed placement</span>'+d.userDirected+'</div>';
+    anHtml += '<div class="userdir"><span class="blab">User-directed placement</span>'+d.userDirected+'</div>';
   }
+  if(contested){
+    anHtml += '<div class="interp">Contested call &mdash; reasonable analysts could score this differently.</div>';
+  }
+  html += _detailsSection("Analytic notes", anHtml);
 
-  // ----- Sources (label→url where url present) -----
+  // ----- Sources.
+  var srcHtml = "";
   if(d.sources && d.sources.length){
-    html+='<div class="sech">Sources</div><ul class="sources">';
+    srcHtml = '<ul class="sources">';
     d.sources.forEach(function(s){
       if(!s) return;
       var label = _escHtml(s.label||"");
       if(s.url){
-        html+='<li><a href="'+_escHtml(s.url)+'" target="_blank" rel="noopener noreferrer">'+label+'</a></li>';
+        srcHtml += '<li><a href="'+_escHtml(s.url)+'" target="_blank" rel="noopener noreferrer">'+label+'</a></li>';
       } else {
-        html+='<li>'+label+'</li>';
+        srcHtml += '<li>'+label+'</li>';
       }
     });
-    html+='</ul>';
+    srcHtml += '</ul>';
   }
+  var srcMeta = (d.sources && d.sources.length) ? (d.sources.length+" source"+(d.sources.length===1?"":"s")) : "";
+  html += _detailsSection("Sources", srcHtml, srcMeta);
 
-  // ----- Linked policies: clickable cross-card chips -----
+  // ===== Always-visible footer ===============================================
+
+  // Linked policies: cross-card navigation chips.
   if(d.linkedPolicies && d.linkedPolicies.length){
     html+='<div class="sech">Linked policies</div><div class="linked-row">';
     d.linkedPolicies.forEach(function(lp){
@@ -463,13 +538,7 @@ function showCountry(name){
     html+='</div>';
   }
 
-  // ----- Contested marker (replaces the old v2 "interp" note) -----
-  if(contested){
-    html+='<div class="interp">Contested call &mdash; reasonable analysts could score this differently.</div>';
-  }
-
-  // ----- Existing OUTCOMES best/base/down (kept verbatim — distinct from the
-  //       v3 `outcome` field above) -----
+  // OUTCOMES best/base/down projection (kept verbatim — distinct from `outcome`).
   html+=outcomeBlock(k);
 
   pb.innerHTML=html;

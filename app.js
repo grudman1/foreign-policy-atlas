@@ -772,25 +772,45 @@ var PHY_RIVERS = { type:"FeatureCollection", features:[
   {type:"Feature",geometry:{type:"LineString",coordinates:[[-52,-23],[-57,-21],[-58,-17],[-58,-24],[-59,-33],[-58,-34]]}}      // Parana
 ]};
 
-/* Mountain range label points — each renders as a row of "^^^" symbols.
-   Two entries for the same range give a double row (Himalayas, Andes).
-   [lon, lat, size-scale] — scale is relative to the base 6.5px. */
-var MTN_SYMBOLS = [
-  [83, 29, 1.05], [83, 27, 1.05],   // Himalayas (two rows)
-  [68, 37, 0.85],                    // Hindu Kush / Karakoram
-  [11, 46, 0.85],                    // Alps
-  [44, 42, 0.80],                    // Caucasus
-  [50, 32, 0.80],                    // Zagros
-  [60, 60, 0.78],                    // Urals
-  [14, 63, 0.78],                    // Scandinavian Mountains
-  [ 2, 33, 0.78],                    // Atlas
-  [38,  9, 0.78],                    // Ethiopian Highlands
-  [80, 44, 0.88],                    // Tian Shan / Altai
-  [-113, 44, 0.92],                  // Rocky Mountains
-  [ -79, 38, 0.78],                  // Appalachians
-  [ -70,-15, 0.92], [-70,-28, 0.92], // Andes (two rows)
-  [149, -25, 0.78]                   // Great Dividing Range
+/* Mountain ridge polylines — each is an array of [lon, lat] waypoints that
+   traces the spine of the range. sampleAlongLine() places triangle symbols
+   at regular SVG-pixel intervals so the full extent is covered. */
+var MTN_RIDGES = [
+  [[71,35],[76,34],[80,31],[84,28],[88,27],[92,27],[96,26]],          // Himalayas
+  [[62,36],[66,36],[70,36],[74,37]],                                   // Hindu Kush / Karakoram
+  [[70,38],[76,40],[82,42],[88,43],[93,43]],                          // Pamir / Tian Shan
+  [[45,37],[48,34],[51,31],[55,29],[57,28]],                          // Zagros
+  [[39,41],[43,43],[46,43],[50,42]],                                   // Caucasus
+  [[6,44],[9,46],[11,47],[14,47],[16,47]],                             // Alps
+  [[60,68],[60,65],[60,61],[59,57],[59,54]],                           // Urals
+  [[6,58],[9,62],[14,65],[17,68]],                                     // Scandinavian Mountains
+  [[-5,34],[-1,33],[3,33],[7,33],[9,31]],                              // Atlas
+  [[34,14],[37,11],[39,9],[42,7]],                                     // Ethiopian Highlands
+  [[-125,50],[-120,46],[-117,42],[-113,38],[-108,34],[-105,30]],      // Rockies
+  [[-84,34],[-80,37],[-77,40],[-74,43],[-70,46]],                     // Appalachians
+  [[-74,11],[-75,5],[-76,0],[-77,-5],[-76,-10],[-70,-15],            // Andes (full — N→S)
+   [-69,-20],[-68,-26],[-68,-33],[-70,-38],[-72,-43],[-73,-50]],
+  [[152,-27],[149,-32],[147,-35],[144,-37]],                           // Great Dividing Range
+  [[-104,27],[-102,22],[-100,18],[-97,17]]                            // Sierra Madre
 ];
+
+/* Sample evenly-spaced points (in SVG pixel space) along a projected polyline.
+   pts — array of already-projected [x,y]; step — spacing in px. */
+function sampleAlongLine(pts, step){
+  var out=[],dist=0,next=step/2;
+  for(var i=1;i<pts.length;i++){
+    var ax=pts[i-1][0],ay=pts[i-1][1],bx=pts[i][0],by=pts[i][1];
+    var dx=bx-ax,dy=by-ay,seg=Math.sqrt(dx*dx+dy*dy);
+    if(seg<0.001) continue;
+    while(next<=dist+seg){
+      var t=(next-dist)/seg;
+      out.push([ax+t*dx,ay+t*dy]);
+      next+=step;
+    }
+    dist+=seg;
+  }
+  return out;
+}
 
 function startMap(){
   d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(world){
@@ -843,16 +863,19 @@ function startMap(){
     gMap.append("path").datum(PHY_RIVERS)
       .attr("class","phy-rivers").attr("d",geoPath);
 
-    // Mountain "^^^" symbols — placed above country fills
+    // Mountain triangle symbols — sampled at 9px intervals along ridge polylines
+    // so every range is represented across its full geographic extent.
     var gMtn=gMap.append("g").attr("class","mtn-layer");
-    MTN_SYMBOLS.forEach(function(m){
-      var pt=proj([m[0],m[1]]);
-      if(!pt||isNaN(pt[0])) return;
-      gMtn.append("text").attr("class","mtn-sym")
-        .attr("x",pt[0]).attr("y",pt[1])
-        .attr("text-anchor","middle").attr("dominant-baseline","central")
-        .style("font-size",(6.5*m[2])+"px")
-        .text("^^^");
+    MTN_RIDGES.forEach(function(ridge){
+      var projPts=ridge.map(function(c){return proj(c);})
+        .filter(function(p){return p&&!isNaN(p[0])&&!isNaN(p[1]);});
+      if(projPts.length<2) return;
+      sampleAlongLine(projPts,9).forEach(function(p){
+        gMtn.append("path")
+          .attr("class","mtn-sym")
+          .attr("transform","translate("+p[0].toFixed(1)+","+p[1].toFixed(1)+")")
+          .attr("d","M0,-4.5 L4,3 L-4,3 Z");
+      });
     });
 
     gOut=gMap.append("g");   // region outline group (rebuilt per president)

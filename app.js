@@ -832,7 +832,7 @@ function startMap(){
     var feats=topojson.feature(world,world.objects.countries).features
               .filter(function(d){return d.properties.name!=="Antarctica";});
     ALLFEATS=feats;
-    var proj=d3.geoNaturalEarth1().fitSize([960,480],{type:"FeatureCollection",features:feats});
+    var proj=d3.geoEqualEarth().fitSize([960,480],{type:"FeatureCollection",features:feats});
     geoPath=d3.geoPath(proj);
     // Keep the projection in 960×480 space (RLAYOUT, paintDeltas, and the
     // zoom transform all assume it). To go full-bleed we set preserveAspectRatio

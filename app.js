@@ -874,7 +874,7 @@ function startMap(){
         gMtn.append("path")
           .attr("class","mtn-sym")
           .attr("transform","translate("+p[0].toFixed(1)+","+p[1].toFixed(1)+")")
-          .attr("d","M0,-4.5 L4,3 L-4,3 Z");
+          .attr("d","M0,-3 L2.5,2 L-2.5,2 Z");
       });
     });
 

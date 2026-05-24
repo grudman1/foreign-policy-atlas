@@ -62,11 +62,14 @@ const EXAMPLE_ENTRY = {
 
   /* ===== CONDITIONAL / OPTIONAL — include only where they genuinely apply ===== */
 
-  // the 5 levers, scored only where relevant (checklist, not a weighted sum)
-  levers: [
-    { lever: "economicTech", sign: "mixed" },   // security | leverage | rivalDenial | coalition | economicTech
-    { lever: "rivalDenial",  sign: "mixed" }     // sign: "+" | "-" | "mixed"
-  ],
+  // The 5 levers, scored only where relevant (checklist, not a required five).
+  // Object keyed by lever id; each value is a short prose explanation. Omit a
+  // lever entirely when it isn't relevant — that's the honest blank.
+  // Lever ids: security | leverage | rivalDenial | coalition | economicTech
+  levers: {
+    economicTech: "Brief prose on the trade / capital / tech-standards effect on this country.",
+    rivalDenial:  "Brief prose on whether this denied a foothold to China/Russia/Iran, or handed them one."
+  },
 
   crossTheaterTradeoff: "Prioritizing a stable China truce may have reduced leverage to extract help elsewhere (e.g. the declined Iran off-ramp).",
 

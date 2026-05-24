@@ -131,7 +131,8 @@ commented example lives in `data/_example.js`.)
 
 ### Conditional (include only when they apply)
 
-`unscoredReason` (required iff `effect:"unscored"`) · `levers[]` ·
+`unscoredReason` (required iff `effect:"unscored"`) · `levers` (object;
+include only the levers that are relevant — checklist, not a required five) ·
 `userDirected` · `decisionVsExecution` · `durability` · `opportunityCost` ·
 `escalationRisk` · `crossTheaterTradeoff` · `grandStrategyDispute` ·
 `longHorizon` · `omissionNote` · `linkedPolicies[]`.

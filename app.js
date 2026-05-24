@@ -98,6 +98,19 @@ var CONDITIONAL_NOTE_LABEL = {
   omissionNote:         "Omission"
 };
 
+/* The 5 levers (per CLAUDE.md). An entry's `levers` is an OBJECT keyed by
+   lever id with short prose values; include only the levers that are
+   relevant (checklist, not a required five). LEVER_ORDER pins the render
+   order so two entries with different lever sets still read consistently. */
+var LEVER_ORDER = ["security","leverage","rivalDenial","coalition","economicTech"];
+var LEVER_LABEL = {
+  security:     "Security / threat",
+  leverage:     "Leverage / dependence",
+  rivalDenial:  "Rival-denial",
+  coalition:    "Coalition / institutional",
+  economicTech: "Economic / tech"
+};
+
 /* ---- v3 read helpers with v2 back-compat. Use these everywhere instead of
         reading entry.effect / entry.inherited / entry.contested directly so the
         v2 fallback is centralized. ---- */
@@ -367,6 +380,36 @@ function showCountry(name){
   // ----- Counterargument -----
   if(d.counterargument && d.counterargument!=="—"){
     html+='<div class="counterarg"><span class="blab">Strongest counterargument</span>'+d.counterargument+'</div>';
+  }
+
+  // ----- Five levers (v3 object form; back-compat to legacy array) -----
+  if(d.levers){
+    if(!Array.isArray(d.levers) && typeof d.levers === "object"){
+      // Object form: keyed by lever id, value is short prose.
+      var leverRows="";
+      LEVER_ORDER.forEach(function(id){
+        var prose=d.levers[id];
+        if(prose && prose!=="—"){
+          leverRows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+prose+'</div>';
+        }
+      });
+      if(leverRows){
+        html+='<div class="sech">Five levers</div>'+leverRows;
+      }
+    } else if(Array.isArray(d.levers) && d.levers.length){
+      // Legacy array form: [{lever, sign}]. Renders as label · sign so
+      // nothing breaks while data is migrating to the object shape.
+      var legacyRows="";
+      d.levers.forEach(function(L){
+        if(!L || !L.lever) return;
+        var label=LEVER_LABEL[L.lever]||L.lever;
+        var sign =L.sign ? ' &middot; '+_escHtml(L.sign) : '';
+        legacyRows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+sign+'</div>';
+      });
+      if(legacyRows){
+        html+='<div class="sech">Five levers</div>'+legacyRows;
+      }
+    }
   }
 
   // ----- Meta chips: Role · Confidence · Evidence -----
@@ -1028,6 +1071,25 @@ function _entrySummary(d){
     if(d[field] && d[field]!=="—")
       L.push(CONDITIONAL_NOTE_LABEL[field]+": "+d[field]);
   });
+  // The 5 levers (object form; back-compat for the legacy array form too) —
+  // one line per present lever so the AI panel sees the per-lever reasoning.
+  if(d.levers){
+    var leverLines=[];
+    if(!Array.isArray(d.levers) && typeof d.levers === "object"){
+      LEVER_ORDER.forEach(function(id){
+        var v=d.levers[id];
+        if(v && v!=="—") leverLines.push(LEVER_LABEL[id]+" — "+v);
+      });
+    } else if(Array.isArray(d.levers)){
+      d.levers.forEach(function(item){
+        if(!item || !item.lever) return;
+        var label=LEVER_LABEL[item.lever]||item.lever;
+        var sign =item.sign ? " ("+item.sign+")" : "";
+        leverLines.push(label+sign);
+      });
+    }
+    if(leverLines.length) L.push("Five levers:\n"+leverLines.map(function(s){return "• "+s;}).join("\n"));
+  }
   if(d.userDirected)L.push("User-directed placement note: "+d.userDirected);
   return L.join("\n");
 }

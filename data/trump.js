@@ -23,7 +23,7 @@ window.PRESIDENTS["trump"] = {
   label: "Donald Trump — 2nd term",
   subject: "Trump",
   headline: "U.S. Strategic Position — Trump Second Term",
-  blurb: "Alignment state &amp; shift from the Biden baseline, by country &amp; region &mdash; May 2026",
+  blurb: "Relationship state &amp; Trump's effect vs. the inherited trajectory, by country &amp; region &mdash; May 2026",
   asOf: "May 2026 (projected timeline)",
   foot:
   "<b>Method &amp; caveats.</b> Every entry uses a two-axis read. "+

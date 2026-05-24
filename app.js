@@ -75,6 +75,7 @@ var RLAYOUT={
 
 /* ---- shared UI / map state ---- */
 var hiddenState={}, hiddenDelta={}, selName=null, selRegion=null, tab="country", svgSel=null;
+var _zoomK=1;
 var ALLFEATS=null, REGIONFEATS=null, FEATFORKEY=null, nameToFeat={}, gOut=null, gD=null, geoPath=null;
 
 /* ---- current-president state (reassigned by loadPresident) ---- */
@@ -130,7 +131,7 @@ function buildLegend(){
 
   // ----- delta row -----
   var rowD=document.createElement("div"); rowD.className="legrow";
-  var lblD=document.createElement("span"); lblD.className="leglabel"; lblD.textContent="Trump moved it";
+  var lblD=document.createElement("span"); lblD.className="leglabel"; lblD.textContent="Shifted this term";
   rowD.appendChild(lblD);
   DELTA_ORDER.forEach(function(da){
     var b=document.createElement("button");
@@ -174,7 +175,7 @@ function clearPanel(){
   var pb=document.getElementById("pbody"); if(!pb) return;
   var html='<div class="empty-state">'+
     '<h2 class="empty-h">Tap any country</h2>'+
-    '<p class="empty-lead">to see how its alignment shifted under this president &mdash; or jump straight into a region below.</p>'+
+    '<p class="empty-lead">to see the current U.S. strategic position and how it changed this term &mdash; or jump straight into a region below.</p>'+
     '<p class="empty-sub">Regions</p>'+
     '<div class="reglist">';
   Object.keys(REGIONS).forEach(function(r){
@@ -200,7 +201,7 @@ function showCountry(name){
   var k=keyFor(name)||name, d=DOSSIER[k], pb=document.getElementById("pbody");
   if(!d){
     pb.innerHTML='<div class="empty-state"><h2 class="empty-h">'+name+'</h2>'+
-      '<p class="empty-lead">isn\'t individually classified in this ledger (shown neutral on the map). Most unclassified states were not part of a distinct Trump-era initiative through May 2026.</p></div>';
+      '<p class="empty-lead">isn\'t individually classified in this ledger (shown neutral on the map). Most unclassified states did not see a distinct shift in U.S. strategic posture during this term.</p></div>';
     selName=null; paint(); paintDeltas(); return;
   }
   selName=name; refreshAnalysisBtns();
@@ -241,8 +242,10 @@ function showCountry(name){
     html+='<div class="interp">Interpretive placement — based on overall posture rather than a single named event; reasonable analysts could score this differently.</div>';
   }
   html+=outcomeBlock(k);
+  html+='<div id="newsPanel" class="news-panel"><span class="aload">Loading headlines…</span></div>';
 
   pb.innerHTML=html;
+  _loadNews(k);
   paint(); paintDeltas();
   var fF=FEATFORKEY&&FEATFORKEY(k); if(fF) flyTo(fF);
 }
@@ -261,7 +264,9 @@ function showRegion(r){
   html+='</div><div class="sech">US strategic goal</div><div class="rgoal">'+R.goal+'</div>'+
     '<div class="sech">Long-term stakes &mdash; benefit vs. damage</div>'+
     '<p style="margin:0;font-size:13.4px">'+R.stakes+'</p>';
+  html+='<div id="newsPanel" class="news-panel"><span class="aload">Loading headlines…</span></div>';
   pb.innerHTML=html;
+  _loadNews(r);
   paint(); paintDeltas();
   var rf=REGIONFEATS&&REGIONFEATS[r];
   if(rf && rf.length) flyTo({type:"FeatureCollection",features:rf});
@@ -324,8 +329,8 @@ function bestLabelTarget(feature, pathArg){
    skipped entirely.
 */
 function appendDeltaMark(parentG, cx, cy, delta, size){
-  // tiny: dot fallback (state still gets a visible mark, but no glyph)
-  if(size < 9){
+  // tiny: dot fallback — use screen-space size so zooming in promotes dot → arrow
+  if(size * _zoomK < 9){
     var r = Math.max(size * 0.34, 2);
     parentG.append("circle")
       .attr("cx", cx).attr("cy", cy).attr("r", r)
@@ -387,7 +392,7 @@ function paintDeltas(){
     var pos = bestLabelTarget(f);
     if(!pos) return;
     var m = Math.min(pos.w, pos.h);
-    if(m < 5) return;                    // too small for any mark
+    if(m * _zoomK < 5) return;           // too small for any mark even at this zoom
     var size = Math.min(m * 0.34, 30);   // 30 = ceiling so huge countries aren't giant
     appendDeltaMark(gD, pos.cx, pos.cy, d.delta, size);
   });
@@ -478,7 +483,11 @@ function switchPresident(id){
 var _mapZoom=null;  // d3.zoom behavior, exposed for reset
 
 function startMap(){
-  d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(world){
+  Promise.all([
+    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"),
+    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@1/world/110m.json").catch(function(){return null;})
+  ]).then(function(results){
+    var world=results[0], phys=results[1];
     var host=document.getElementById("map");host.textContent="";
     var feats=topojson.feature(world,world.objects.countries).features
               .filter(function(d){return d.properties.name!=="Antarctica";});
@@ -500,6 +509,18 @@ function startMap(){
 
     // Single transform group that gets the zoom/pan; all map layers live inside it
     var gMap = svgSel.append("g").attr("class","zoom-group");
+
+    // Physical geography — ocean sphere, graticule, rivers, lakes (all below country fill)
+    gMap.append("path").datum({type:"Sphere"})
+      .attr("class","phy-ocean").attr("d",geoPath);
+    gMap.append("path").datum(d3.geoGraticule().step([30,30])())
+      .attr("class","phy-graticule").attr("d",geoPath);
+    if(phys && phys.objects.rivers)
+      gMap.append("path").datum(topojson.feature(phys,phys.objects.rivers))
+        .attr("class","phy-rivers").attr("d",geoPath);
+    if(phys && phys.objects.lakes)
+      gMap.append("path").datum(topojson.feature(phys,phys.objects.lakes))
+        .attr("class","phy-lakes").attr("d",geoPath);
 
     var gC=gMap.append("g");
     gC.selectAll("path").data(feats).join("path")
@@ -554,6 +575,7 @@ function startMap(){
       .translateExtent([[-100,-100],[1060,580]])
       .on("zoom", function(event){
         gMap.attr("transform", event.transform);
+        if(event.transform.k !== _zoomK){ _zoomK=event.transform.k; paintDeltas(); }
       });
     svgSel.call(_mapZoom);
     // Disable D3's default double-click-to-zoom; we use the button for reset.
@@ -893,6 +915,33 @@ function _runQuery(question){
 
 function _escHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function _fmtNewsDate(s){
+  // GDELT seendate format: "20260523T120000Z"
+  if(!s || s.length < 8) return "";
+  return s.slice(4,6)+"/"+s.slice(6,8)+"/"+s.slice(0,4);
+}
+
+function _loadNews(topic){
+  var el=document.getElementById("newsPanel");
+  if(!el) return;
+  fetch("/api/news?q="+encodeURIComponent(topic))
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var arts=(data.articles||[]).filter(function(a){return a.title&&a.url;});
+      if(!arts.length){ el.innerHTML=""; return; }
+      var h='<div class="news-head">Recent Headlines</div><ul class="news-list">';
+      arts.forEach(function(a){
+        var date=_fmtNewsDate(a.seendate);
+        h+='<li><a href="'+_escHtml(a.url)+'" target="_blank" rel="noopener">'+
+            _escHtml(a.title)+'</a>'+
+            '<span class="news-meta">'+_escHtml(a.domain||"")+(date?" &middot; "+date:"")+'</span></li>';
+      });
+      h+='</ul>';
+      el.innerHTML=h;
+    })
+    .catch(function(){ el.innerHTML=""; });
 }
 
 function _renderMarkdown(text,el){

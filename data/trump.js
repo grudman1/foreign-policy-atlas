@@ -16,8 +16,8 @@ window.PRESIDENTS = window.PRESIDENTS || {};
 window.PRESIDENTS["trump"] = {
   id: "trump",
   label: "Donald Trump — 2nd term",
-  headline: "Has Trump Set the US Up for the New World Order?",
-  blurb: "Interactive country &amp; regional ledger of US foreign alignment &mdash; compiled May 2026. Each entry shows where the relationship <i>stands</i> (state) and what Trump <i>changed</i> from the Biden baseline (delta), the agreements behind each rating, and a best / base / downside outcome line.",
+  headline: "U.S. Strategic Position — Trump Second Term",
+  blurb: "A country-by-country snapshot of U.S. foreign-policy alignment as of May 2026, using the Trump second term as the measurement period. Each entry shows where the relationship <i>stands</i> (state) and how it <i>changed</i> from the Biden-era baseline (delta) &mdash; the agreements, friction points, and dynamics behind each rating, plus a best / base / downside outcome projection.",
   asOf: "May 2026 (projected timeline)",
   foot:
   "<b>Method &amp; caveats.</b> Every entry uses a two-axis read. "+

@@ -47,6 +47,7 @@
   --good:#5f9618; --mid:#B07D1A; --bad:#C2403F;
   --lbl:#4F4D44; --lblbg:#FFFFFF;
   --arrow-fill:#FFFFFF; --arrow-outline:#161616;
+  --ocean:#B8C8D8; --water:#7A9EBA;
 
   /* Floating chrome shadows */
   --shadow-float:0 6px 24px rgba(31, 30, 24, 0.10), 0 1px 3px rgba(31, 30, 24, 0.05);
@@ -78,6 +79,7 @@
     --good:#97C459; --mid:#D4A53A; --bad:#E97A79;
     --lbl:#A8A69B; --lblbg:#22242A;
     --arrow-fill:#FFFFFF; --arrow-outline:#161616;
+    --ocean:#1C2B3A; --water:#2D4558;
     --shadow-float:0 6px 24px rgba(0,0,0,0.40), 0 1px 3px rgba(0,0,0,0.20);
     --shadow-deep:0 18px 52px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.25);
   }
@@ -105,6 +107,10 @@ body{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   color:var(--ink3);font-size:13px;
 }
+.phy-ocean{pointer-events:none;fill:var(--ocean)}
+.phy-graticule{fill:none;stroke:var(--water);stroke-width:0.3;opacity:0.35;pointer-events:none}
+.phy-rivers{fill:none;stroke:var(--water);stroke-width:0.55;opacity:0.65;pointer-events:none}
+.phy-lakes{fill:var(--water);opacity:0.45;stroke:none;pointer-events:none}
 .cty{cursor:pointer;transition:opacity .15s, stroke-width .15s}
 .cty:hover{opacity:.78}
 .cty.sel{stroke:var(--ink);stroke-width:1.4}
@@ -330,6 +336,13 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   border-top:1px dashed var(--line);padding-top:10px}
 .outcome{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
 .outcome h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 10px}
+.news-panel{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;min-height:0}
+.news-head{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 8px}
+.news-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.news-list li{display:flex;flex-direction:column;gap:2px}
+.news-list a{font-size:13px;color:var(--ink);line-height:1.45;text-decoration:none}
+.news-list a:hover{color:var(--accent);text-decoration:underline}
+.news-meta{font-size:11px;color:var(--ink3)}
 .ocell{display:flex;gap:9px;margin-bottom:9px;font-size:12.9px;line-height:1.5}
 .otag{flex:none;width:62px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-top:1px}
 .otag.g{color:var(--good)} .otag.m{color:var(--mid)} .otag.b{color:var(--bad)}

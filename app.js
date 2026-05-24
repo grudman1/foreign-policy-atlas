@@ -127,10 +127,25 @@ function magnitudeOf(entry){
   return MAGNITUDE_NAME[entry.magnitude] ? entry.magnitude : null;
 }
 function inheritedOf(entry){
+  // Returns the raw `inherited` value, which v3 allows to be either:
+  //   - a string (single-sentence prose), or
+  //   - an array of strings (one bullet per item, for entries whose inherited
+  //     trajectory reads as a list of factors rather than one sentence).
+  // Callers that need a flat string (AI context serialization) should pass the
+  // result through inheritedTextOf().
   if(!entry) return "";
-  if(entry.inherited && entry.inherited!=="—") return entry.inherited;
+  if(entry.inherited){
+    if(Array.isArray(entry.inherited) && entry.inherited.length) return entry.inherited;
+    if(typeof entry.inherited === "string" && entry.inherited!=="—") return entry.inherited;
+  }
   if(entry.baseline  && entry.baseline !=="—") return entry.baseline;  // v2 fallback
   return "";
+}
+function inheritedTextOf(entry){
+  // Flattened to a single string for AI-context serialization.
+  var v = inheritedOf(entry);
+  if(Array.isArray(v)) return v.join(" ");
+  return v || "";
 }
 function isContestedEntry(entry){
   if(!entry) return false;
@@ -293,6 +308,26 @@ function clearPanel(){
   html+='</div>';
   pb.innerHTML=html;
   refreshAnalysisBtns();
+  // No selection → hide the dock entirely; the small floating "Panel" button
+  // (rendered in index.html, controlled by _setDockHidden) takes its place so
+  // the Ask AI tab remains reachable for global queries.
+  _setDockHidden(true);
+}
+
+/* ---- Dock visibility — show only when there's something to read ----
+   Tying dock visibility to selection state cleans up the map view at rest.
+   The "Panel" toggle in index.html re-opens the dock manually (defaulting to
+   the Ask AI tab, since the empty Dossier state has no actionable content). */
+function _setDockHidden(hidden){
+  var dock = document.getElementById("dock");
+  var btn  = document.getElementById("dockOpenBtn");
+  if(dock) dock.classList.toggle("dock-hidden", !!hidden);
+  if(btn)  btn.hidden = !hidden;
+}
+function openDockManual(){
+  _setDockHidden(false);
+  // No selection → Ask AI is the only meaningful action; bring it forward.
+  if(!selName && !selRegion) setTab("askai");
 }
 
 function outcomeBlock(k){
@@ -326,6 +361,49 @@ function _splitOutcomeHeadline(text){
     first: text.slice(0, endIdx).trim(),
     rest:  text.slice(endIdx).trim()
   };
+}
+
+/* Repeated-application of the same sentence-boundary rule: split a paragraph
+   into its constituent sentences so each can render as its own <p>. Used by
+   _renderProseBlock so multi-sentence prose doesn't read as a wall. */
+function _splitSentences(text){
+  if(!text) return [];
+  var out=[], lastIdx=0, m;
+  var re = /([a-z\d\)\]"’”])([.!?])(\s+)([A-Z])/g;
+  while((m = re.exec(text)) !== null){
+    var endIdx = m.index + m[1].length + m[2].length;
+    var part = text.slice(lastIdx, endIdx).trim();
+    if(part) out.push(part);
+    lastIdx = endIdx;
+  }
+  if(lastIdx < text.length){
+    var tail = text.slice(lastIdx).trim();
+    if(tail) out.push(tail);
+  }
+  return out;
+}
+
+/* Render a prose value consistently — either as a bulleted list (when the value
+   is an array of items) or as one or more <p> paragraphs (when it's a string).
+   The principle: don't mix bullets and sentences within a single block. Authors
+   choose by the value shape; the renderer never silently bullets prose or
+   prose-ifies a list. */
+function _renderProseBlock(value){
+  if(value === null || value === undefined) return "";
+  if(Array.isArray(value)){
+    var items = value.filter(function(v){return v && v!=="—";});
+    if(!items.length) return "";
+    var ul = '<ul class="prose-bullets">';
+    items.forEach(function(item){ ul += '<li>'+item+'</li>'; });
+    ul += '</ul>';
+    return ul;
+  }
+  if(typeof value !== "string" || !value || value==="—") return "";
+  var sentences = _splitSentences(value);
+  if(sentences.length <= 1){
+    return '<p class="prose-p">'+value+'</p>';
+  }
+  return sentences.map(function(s){return '<p class="prose-p">'+s+'</p>';}).join('');
 }
 
 /* Wrap arbitrary HTML in a collapsible <details> section. Returns "" when the
@@ -372,6 +450,9 @@ function _buildLeversHtml(d){
 function showCountry(name){
   setTabSilent("country");
   selRegion=null;
+  // A click on the map (classified or not) brings the dock back if it was
+  // hidden from the empty-state.
+  _setDockHidden(false);
   var k=keyFor(name)||name, d=DOSSIER[k], pb=document.getElementById("pbody");
   if(!d){
     pb.innerHTML='<div class="empty-state"><h2 class="empty-h">'+name+'</h2>'+
@@ -438,20 +519,23 @@ function showCountry(name){
   // ----- Inherited → Now: the counterfactual contrast at a glance. Replaces
   // the separate .baseline and .outcome-line blocks. Only renders when at
   // least one of the two sides has content; e.g. the US home entry suppresses
-  // both and shows nothing here.
-  var hasInh = !!inherited, hasOut = !!outSplit.first;
+  // both and shows nothing here. _renderProseBlock handles both shapes of
+  // `inherited` (string → paragraphs; array → bulleted list) so the section
+  // never mixes prose and bullets.
+  var hasInh = (Array.isArray(inherited) ? inherited.length>0 : !!inherited);
+  var hasOut = !!outSplit.first;
   if(hasInh || hasOut){
     html+='<div class="inh-now">';
     if(hasInh){
       html+='<div class="inh-row inh-before">'+
             '<span class="inh-lab">Inherited trajectory</span>'+
-            '<p class="inh-text">'+inherited+'</p>'+
+            _renderProseBlock(inherited)+
             '</div>';
     }
     if(hasOut){
       html+='<div class="inh-row inh-after">'+
             '<span class="inh-lab">Now &mdash; under this president</span>'+
-            '<p class="inh-text">'+outSplit.first+'</p>'+
+            _renderProseBlock(outSplit.first)+
             '</div>';
     }
     html+='</div>';
@@ -460,9 +544,13 @@ function showCountry(name){
   // ===== DRILL-DOWN (collapsed by default) ===================================
 
   // ----- Why this scoring: outcome remainder, causal points, counterargument.
+  // The outcome remainder is multi-sentence prose — render through
+  // _renderProseBlock so each sentence gets its own <p> rather than reading
+  // as a single wall.
   var whyHtml = "";
   if(outSplit.rest){
-    whyHtml += '<div class="condnote"><span class="condnote-lab">Outcome (cont.)</span>'+outSplit.rest+'</div>';
+    whyHtml += '<div class="outcome-rest"><span class="blab">Outcome (continued)</span>'+
+               _renderProseBlock(outSplit.rest)+'</div>';
   }
   if(pts.length){
     if(whyHtml) whyHtml += '<div class="dsec-sublab">Causal argument</div>';
@@ -471,7 +559,8 @@ function showCountry(name){
     whyHtml += '</ul>';
   }
   if(d.counterargument && d.counterargument!=="—"){
-    whyHtml += '<div class="counterarg"><span class="blab">Strongest counterargument</span>'+d.counterargument+'</div>';
+    whyHtml += '<div class="counterarg"><span class="blab">Strongest counterargument</span>'+
+               _renderProseBlock(d.counterargument)+'</div>';
   }
   var whyMeta = pts.length ? (pts.length+" point"+(pts.length===1?"":"s")) : "";
   html += _detailsSection("Why this scoring", whyHtml, whyMeta);
@@ -548,6 +637,7 @@ function showCountry(name){
 
 function showRegion(r){
   setTabSilent("region");
+  _setDockHidden(false);
   var R=REGIONS[r], pb=document.getElementById("pbody");
   if(!R){ goOverview(); return; }
   selRegion=r; selName=null; refreshAnalysisBtns();
@@ -1180,7 +1270,7 @@ function _entrySummary(d){
   if(d.confidence)  L.push("Confidence: "+d.confidence+".");
   if(d.evidence)    L.push("Evidence: "+d.evidence+".");
   if(d.contested)   L.push("Contested: yes.");
-  var inh=inheritedOf(d);
+  var inh=inheritedTextOf(d);
   if(inh)           L.push("Inherited trajectory: "+inh);
   if(d.outcome && d.outcome!=="—")
                     L.push("Outcome (what happened to US position): "+d.outcome);

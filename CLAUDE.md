@@ -120,7 +120,7 @@ commented example lives in `data/_example.js`.)
 | `magnitude` | `modest`\|`material`\|`major`\|`null` | required iff effect is `helped`/`hurt`; else `null` |
 | `region` | string | must match a `regions` key |
 | `outcome` | one sentence | what *happened* to the U.S. position (the world) |
-| `inherited` | one sentence | the inherited trajectory = the fixed counterfactual |
+| `inherited` | string OR string[] | the inherited trajectory = the fixed counterfactual. Use a string for single-sentence prose; use an array when the trajectory reads as a list of factors (the UI bullets the array). Never mix bullets and sentences inside one value — pick a form |
 | `points` | string[] | the causal argument; one sourced fact/claim each |
 | `role` | see *Roles* | how the president related to the outcome |
 | `confidence` | `high`\|`medium`\|`low` | confidence in the **effect attribution** |

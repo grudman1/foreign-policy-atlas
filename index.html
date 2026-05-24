@@ -401,6 +401,60 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   border:1px solid var(--line);background:transparent;color:var(--ink2);cursor:pointer;
   transition:border-color .12s, color .12s, background .12s}
 .linkchip:hover{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+
+/* ---- v3 redesign: at-a-glance Inherited → Now block ----
+   Replaces the standalone .baseline and .outcome-line blocks. Two stacked rows
+   separated by a thin divider; left accent bar visually anchors it as the
+   "headline summary" of the dossier. */
+.inh-now{
+  margin:14px 0 16px;
+  background:var(--chip);
+  border-radius:12px;
+  padding:14px 16px;
+  border-left:3px solid var(--accent);
+}
+.inh-row + .inh-row{
+  margin-top:11px;padding-top:11px;
+  border-top:1px solid var(--line);
+}
+.inh-lab{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--ink3);font-weight:600;margin-bottom:5px}
+.inh-text{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink)}
+.inh-before .inh-text{color:var(--ink2)}
+.inh-after  .inh-text{color:var(--ink);font-weight:500}
+
+/* ---- v3 redesign: collapsible drill-down sections (<details>) ----
+   Editorial accordion: thin top divider, uppercase title, chevron rotates on
+   open. .dsec-meta is a tiny "(3 points)" / "(8 sources)" counter so closed
+   sections still telegraph what they hold. */
+.dsec{margin-top:4px;border-top:1px solid var(--line2)}
+.dsec:first-of-type{margin-top:14px}
+.dsec[open]{padding-bottom:6px}
+.dsec-h{
+  display:flex;align-items:center;gap:8px;
+  padding:11px 0;cursor:pointer;list-style:none;user-select:none;
+}
+.dsec-h::-webkit-details-marker{display:none}
+.dsec-h::marker{content:""}
+.dsec-title{flex:1;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;
+  font-weight:600;color:var(--ink2);transition:color .12s}
+.dsec-meta{font-size:11px;color:var(--ink3);font-weight:500;
+  text-transform:none;letter-spacing:0}
+.dsec-chev{font-size:11px;color:var(--ink3);transition:transform .2s;
+  line-height:1;display:inline-block}
+.dsec[open] .dsec-chev{transform:rotate(180deg)}
+.dsec-h:hover .dsec-title,
+.dsec-h:hover .dsec-chev{color:var(--accent)}
+.dsec-h:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.dsec-body{padding:2px 0 12px}
+.dsec-sublab{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink3);font-weight:600;margin:12px 0 6px}
+
+/* ---- Honesty pills (contested / editor-directed) sit next to the badges.
+   Italic-outlined so they read as warnings without alarmism. */
+.badge.badge-warn{background:transparent;color:var(--mid);
+  border:1px solid var(--mid);font-style:italic}
+
 .sech{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:18px 0 8px}
 .rgoal{font-size:13.2px;background:var(--chip);border-radius:10px;padding:11px 13px;margin:4px 0 2px;line-height:1.55}
 .proj{position:relative;padding:0 0 8px 15px;font-size:13px;line-height:1.5}

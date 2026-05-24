@@ -349,6 +349,42 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 .ocell{display:flex;gap:9px;margin-bottom:9px;font-size:12.9px;line-height:1.5}
 .otag{flex:none;width:62px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding-top:1px}
 .otag.g{color:var(--good)} .otag.m{color:var(--mid)} .otag.b{color:var(--bad)}
+
+/* ---- v3 dossier additions — reuse the .baseline chip style with subtle
+        accents so the three blocks (inherited / outcome / counterargument)
+        are visually distinct without inventing a new visual language. ---- */
+.outcome-line{margin:10px 0 13px;padding:10px 12px;background:var(--chip);
+  border-radius:10px;font-size:12.7px;line-height:1.55;color:var(--ink);
+  border-left:3px solid var(--accent)}
+.outcome-line .blab{display:block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:4px}
+.counterarg{margin:10px 0 13px;padding:10px 12px;background:var(--chip);
+  border-radius:10px;font-size:12.7px;line-height:1.55;color:var(--ink2);
+  border-left:3px solid var(--mid)}
+.counterarg .blab{display:block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink3);font-weight:600;margin-bottom:4px}
+.userdir{margin:10px 0 13px;padding:10px 12px;background:var(--chip);
+  border-radius:10px;font-size:12.5px;line-height:1.5;color:var(--ink2);
+  border-left:3px solid var(--bad)}
+.userdir .blab{display:block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--bad);font-weight:600;margin-bottom:4px}
+.metachips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px}
+.metachip{display:inline-flex;align-items:baseline;gap:6px;font-size:11.5px;
+  padding:3px 10px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--ink2)}
+.metachip .mclab{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);font-weight:600}
+.metachip .mcval{color:var(--ink);font-weight:500;text-transform:capitalize}
+.condnote{font-size:12.6px;line-height:1.5;margin:6px 0 0;color:var(--ink2)}
+.condnote-lab{display:inline-block;font-size:10px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink3);font-weight:600;margin-right:6px}
+.sources{margin:4px 0 0;padding:0;list-style:none;font-size:12.4px;line-height:1.5}
+.sources li{padding:3px 0;color:var(--ink2)}
+.sources a{color:var(--accent);text-decoration:none}
+.sources a:hover{text-decoration:underline}
+.linked-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.linkchip{font-family:inherit;font-size:12px;padding:4px 11px;border-radius:var(--radius-pill);
+  border:1px solid var(--line);background:transparent;color:var(--ink2);cursor:pointer;
+  transition:border-color .12s, color .12s, background .12s}
+.linkchip:hover{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
 .sech{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:18px 0 8px}
 .rgoal{font-size:13.2px;background:var(--chip);border-radius:10px;padding:11px 13px;margin:4px 0 2px;line-height:1.55}
 .proj{position:relative;padding:0 0 8px 15px;font-size:13px;line-height:1.5}
@@ -558,7 +594,7 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
       <span class="legend-toggle-chev" aria-hidden="true">&#8964;</span>
     </button>
     <div class="legend-body" id="legendBody">
-      <p class="legend-hint">Color = today's state. Arrow = how it moved vs. the prior administration.</p>
+      <p class="legend-hint">Color = today's state. Arrow = what <em>this</em> president caused vs. the trajectory they inherited.</p>
       <div class="legend" id="legend"></div>
     </div>
   </div>

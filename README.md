@@ -1,12 +1,17 @@
 # Foreign Policy Atlas
 
-An interactive world map classifying countries by their foreign-policy alignment
-with the United States, president by president. Click a country for its dossier
-and projected outcomes; click a region for the regional picture; filter by tier;
-switch presidents from the dropdown.
+An interactive, president-by-president assessment of U.S. foreign policy. For
+each country the map shows two things at once on **two independent axes**:
+**where the relationship stands today** (the color) and **what this president
+caused vs. the trajectory they inherited** (the arrow). Click a country for its
+dossier and projected outcomes; click a region for the regional picture; filter
+by state or by effect; switch presidents from the dropdown.
 
-This started as a single-file prototype and has been split into a clean,
-multi-president structure so two people can build it out in parallel.
+> The data model and rating methodology are defined in
+> [`CLAUDE.md`](CLAUDE.md) (the v3 "President Effect" model). A fully-commented
+> worked example of an entry lives at
+> [`data/_example.js`](data/_example.js) — that file is a reference template
+> only and is not loaded by the app.
 
 ## Run it
 
@@ -47,21 +52,48 @@ The dropdown picks it up automatically.
 
 ## Add or edit a country (within a president file)
 
-In that president's `dossier`:
+Each `dossier` entry is a v3 "President Effect" object — see
+[`data/_example.js`](data/_example.js) for the full commented shape and
+[`CLAUDE.md`](CLAUDE.md) for field definitions and the methodology. A typical
+scored entry looks like:
 
 ```js
 window.PRESIDENTS["trump"].dossier["Ukraine"] = {
-  tier: 4,                     // 1-6 (see tiers below); drives map color
-  region: "Europe",            // must match a region label
-  points: [
-    "Concrete, sourced reasoning bullet.",
-    "Another bullet.",
-    "interp"                   // OPTIONAL last item: flags an interpretive call
-  ]
+  // ----- the two axes -----
+  state: "strained",          // the COLOR: today's relationship
+  effect: "hurt",             // the ARROW: what this president caused
+  magnitude: "material",      // modest | material | major  (only for helped/hurt)
+
+  region: "Europe",           // must match a key in `regions`
+
+  // outcome = what HAPPENED to the US position (the world)
+  outcome: "One sentence.",
+  // inherited = the fixed counterfactual the effect is measured against
+  inherited: "One sentence describing the inherited trajectory.",
+
+  // the causal argument — one sourced fact/claim per bullet
+  points: ["…", "…"],
+
+  // attribution + how sure we are
+  role: "Spoiler",            // Architect | Accelerator | Closer | Stabilizer | Active Stabilizer | Inheritor | Bystander | Neglect | Spoiler
+  confidence: "medium",       // high | medium | low
+  evidence: "adequate",       // adequate | thin | insufficient
+
+  // honesty
+  contested: true,            // shows "analysts could score this differently"
+  counterargument: "The strongest case against this scoring.",
+
+  // claims are fetched, not recalled
+  sources: [{ label: "…", url: "…" }]
+
+  // Optional/conditional fields (durability, opportunityCost, escalationRisk,
+  // unscoredReason, userDirected, etc.) — include only when they apply.
 };
 ```
 
-Optionally add an outcome line in the same file's `outcomes`:
+Optionally add an outcome-projection line in the same file's `outcomes`
+(separate from the entry's `outcome` field — these are best/base/downside
+projections, explicitly not predictions):
 
 ```js
 window.PRESIDENTS["trump"].outcomes["Ukraine"] =
@@ -73,17 +105,43 @@ uses "Czech Rep.", "Macedonia", "Dominican Rep."); the alias table in `app.js`
 handles the known cases. If a new country won't highlight, check its exact map
 name and add an alias.
 
-## Tiers (the map colors)
+**Triage — don't force every country.** If nothing of strategic consequence
+happened or there isn't enough sourcing to make a defensible call, set
+`effect: "unscored"` plus an `unscoredReason` (`noMaterialEffect` |
+`noPresidentialEffect` | `systemicOnly` | `insufficientEvidence`). The legend's
+Unscored count is a deliberate honesty surface — see CLAUDE.md for the
+triage-fairness rule.
 
-| tier | meaning | note |
+## The two axes (map colors and arrows)
+
+**State (the color) — where the relationship stands today.**
+
+| state | meaning |
+|---|---|
+| `core-ally` | treaty-level or institutionally deep |
+| `aligned` | partner; moving together on most issues |
+| `neutral` | transactional; no strong pull either way |
+| `strained` | cooling, damaged, or low-engagement |
+| `adversarial` | active rivalry or hostility |
+| `us` | the United States itself |
+
+**Effect (the arrow) — what this president caused vs. the inherited trajectory.**
+
+| effect | arrow | meaning |
 |---|---|---|
-| 1 | Emerging gain | new & real, not yet locked in |
-| 2 | Solid gain | aligned & institutionalizing |
-| 3 | Established ally | maintained, not a new win for this president |
-| 4 | In play | courted or contested |
-| 5 | Strained / uncommitted | cooling or low-engagement |
-| 6 | Adversarial / rival | |
-| 0 | The United States | the home country |
+| `helped` | ↑ | improved the US position vs. the inherited path |
+| `mixed` | — | net effect is genuinely mixed, offsetting, or unclear |
+| `hurt` | ↓ | worsened the US position vs. the inherited path |
+| `unscored` | · | deliberately off the scoreboard (with an `unscoredReason`) |
+
+`magnitude` (`modest` / `material` / `major`) is shown on the arrow's weight,
+and applies only to `helped` / `hurt`. The two axes are independent: a country
+can be `adversarial` but `helped` (an enemy handled well), or `core-ally` but
+`hurt` (a friend damaged).
+
+The full methodology — the mandatory counterfactual, the role taxonomy, the
+five levers, the source rules, the honesty rules — lives in
+[`CLAUDE.md`](CLAUDE.md).
 
 ## Deploy
 
@@ -116,10 +174,18 @@ If the key is missing or misconfigured, the panel will display the JSON error
 returned by the function rather than a Vercel 404 page — that's the signal that
 the route exists but the environment isn't set up yet.
 
-## Notes from the prototype
+## Notes
 
-- The Trump map is a projected May 2026 timeline; outcome lines are analytical
-  projections, not predictions.
-- Region label positions are hand-placed approximations for navigation.
-- See `CLAUDE.md` for the rating rubric, sourcing standard, and the honesty
-  rules every entry should follow.
+- The Trump map is a projected May 2026 timeline; the per-entry `outcome` line
+  and the `outcomes` best/base/downside block are explicitly *projections, not
+  predictions*. Region label positions are hand-placed approximations for
+  navigation.
+- The current `data/trump.js` is a v2 file awaiting migration to v3
+  ([`CLAUDE.md`](CLAUDE.md) → *Migration*). The app reads v2 entries
+  back-compatibly: colors still render from `state`, `baseline` is shown as the
+  inherited trajectory, a trailing `"interp"` in `points[]` flags a contested
+  call, and the absence of an `effect` field means no arrow is drawn yet. The
+  full v3 dossier surface (effect badge, outcome line, counterargument, meta
+  chips, etc.) appears as entries are re-derived.
+- See [`CLAUDE.md`](CLAUDE.md) for the methodology, the source rules, and the
+  honesty rules every entry should follow.

@@ -3,16 +3,23 @@
    Data is supplied by data/<president>.js via the window.PRESIDENTS registry.
    This file renders whichever president is selected in the dropdown.
 
-   Schema v2: each dossier entry has
-     state    — core-ally | aligned | neutral | strained | adversarial | us
-     delta    — ↑↑ | ↑ | → | ↓ | ↓↓ | —
-     baseline — one sentence on what the prior administration left behind
-     region, points[]
-   The map color comes from state; an overlaid chevron at each country
-   centroid shows delta.
+   Schema v3 — "President Effect" model. Two independent axes:
+     state    = the COLOR — where the relationship stands today.
+                core-ally | aligned | neutral | strained | adversarial | us
+     effect   = the ARROW — what THIS president caused vs. the inherited
+                trajectory. helped | mixed | hurt | unscored
+     magnitude= modest | material | major  (only for helped/hurt)
+
+   See CLAUDE.md for methodology and data/_example.js for a worked entry.
+
+   Back-compat with v2 data (which used `delta` / `baseline` / "interp"):
+     missing `effect`      → treated as "unscored" (no arrow, still color)
+     missing `inherited`   → falls back to `baseline`
+     trailing "interp" in points[] → treated as contested
+     all new optional fields absent → render nothing, no errors.
    ===================================================================== */
 
-/* ---- state + delta config (shared across presidents) ---- */
+/* ---- state config (the COLOR) — unchanged across presidents ---- */
 var STATE_COLOR = {
   "core-ally":   "--s-core",
   "aligned":     "--s-aligned",
@@ -39,14 +46,92 @@ var STATE_DESC = {
 };
 var STATE_ORDER = ["core-ally","aligned","neutral","strained","adversarial"];
 
-var DELTA_ORDER = ["↑↑","↑","→","↓","↓↓"];
-var DELTA_NAME = {
-  "↑↑": "major gain",
-  "↑":      "modest gain",
-  "→":      "held",
-  "↓":      "modest damage",
-  "↓↓":"major damage"
+/* ---- effect config (the ARROW) — net causal effect vs. inherited trajectory ---- */
+var EFFECT_ORDER = ["helped","mixed","hurt","unscored"];
+var EFFECT_NAME = {
+  "helped":   "Helped",
+  "mixed":    "Mixed / unclear",
+  "hurt":     "Hurt",
+  "unscored": "Unscored"
 };
+/* Effect → legend glyph (small unicode for the chip; the on-map arrow geometry
+   is drawn separately by appendDeltaMark). Mixed is a short bar, unscored a
+   small dot. */
+var EFFECT_GLYPH = {
+  "helped":   "↑",
+  "mixed":    "—",
+  "hurt":     "↓",
+  "unscored": "·"
+};
+var MAGNITUDE_ORDER = ["modest","material","major"];
+var MAGNITUDE_NAME = {
+  "modest":   "modest",
+  "material": "material",
+  "major":    "major"
+};
+var UNSCORED_REASON_NAME = {
+  "noMaterialEffect":     "no material effect",
+  "noPresidentialEffect": "not driven by the president",
+  "systemicOnly":         "systemic forces only",
+  "insufficientEvidence": "insufficient evidence"
+};
+/* Labels for the optional/conditional notes in a v3 dossier. Order matters:
+   the dossier renders them in this sequence when present. */
+var CONDITIONAL_NOTE_ORDER = [
+  "durability",
+  "opportunityCost",
+  "escalationRisk",
+  "decisionVsExecution",
+  "crossTheaterTradeoff",
+  "grandStrategyDispute",
+  "longHorizon",
+  "omissionNote"
+];
+var CONDITIONAL_NOTE_LABEL = {
+  durability:           "Durability",
+  opportunityCost:      "Opportunity cost",
+  escalationRisk:       "Escalation risk",
+  decisionVsExecution:  "Decision vs. execution",
+  crossTheaterTradeoff: "Cross-theater trade-off",
+  grandStrategyDispute: "Grand-strategy dispute",
+  longHorizon:          "Long horizon",
+  omissionNote:         "Omission"
+};
+
+/* ---- v3 read helpers with v2 back-compat. Use these everywhere instead of
+        reading entry.effect / entry.inherited / entry.contested directly so the
+        v2 fallback is centralized. ---- */
+function effectOf(entry){
+  if(!entry) return "unscored";
+  if(entry.effect && EFFECT_NAME[entry.effect]) return entry.effect;
+  return "unscored"; // v2 entries (no `effect` field) read as unscored
+}
+function magnitudeOf(entry){
+  // Only meaningful for helped/hurt; null for everything else per CLAUDE.md.
+  if(!entry) return null;
+  var e=effectOf(entry);
+  if(e!=="helped" && e!=="hurt") return null;
+  return MAGNITUDE_NAME[entry.magnitude] ? entry.magnitude : null;
+}
+function inheritedOf(entry){
+  if(!entry) return "";
+  if(entry.inherited && entry.inherited!=="—") return entry.inherited;
+  if(entry.baseline  && entry.baseline !=="—") return entry.baseline;  // v2 fallback
+  return "";
+}
+function isContestedEntry(entry){
+  if(!entry) return false;
+  if(entry.contested===true) return true;
+  // v2 fallback: trailing "interp" in points[]
+  var pts=entry.points||[];
+  return pts.length>0 && pts[pts.length-1]==="interp";
+}
+function pointsOf(entry){
+  // Strip the trailing "interp" sentinel (v2) so it doesn't render as a point.
+  var pts=(entry && entry.points)?entry.points.slice():[];
+  if(pts.length && pts[pts.length-1]==="interp") pts.pop();
+  return pts;
+}
 
 var ALIAS={
   "Dem. Rep. Congo":"Dem. Rep. Congo","Czech Rep.":"Czechia","Macedonia":"North Macedonia",
@@ -74,8 +159,8 @@ var RLAYOUT={
 
 
 /* ---- shared UI / map state ---- */
-var hiddenState={}, hiddenDelta={}, selName=null, selRegion=null, tab="country", svgSel=null;
-var _zoomK=1;
+var hiddenState={}, hiddenEffect={}, selName=null, selRegion=null, tab="country", svgSel=null;
+var _zoomK=1;  // current zoom transform.k; used by paintDeltas for screen-space arrow promotion
 var ALLFEATS=null, REGIONFEATS=null, FEATFORKEY=null, nameToFeat={}, gOut=null, gD=null, geoPath=null;
 
 /* ---- current-president state (reassigned by loadPresident) ---- */
@@ -96,19 +181,25 @@ function keyFor(n){ if(ALIAS[n]&&DOSSIER[ALIAS[n]])return ALIAS[n]; if(DOSSIER[n
 function cssv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 
-/* ---- legend with two rows (state + delta) and live counts ---- */
+/* ---- legend with two rows (state + effect) and live counts ----------
+   State row is unchanged. The second row is the v3 EFFECT axis (helped /
+   mixed / hurt / unscored), with a president-agnostic label derived from
+   P.subject (e.g. "Trump's effect"). v2 entries with no `effect` field
+   count toward Unscored.                                              */
 function buildLegend(){
   var L=document.getElementById("legend");
   L.innerHTML="";
+  var P=window.PRESIDENTS[CURRENT]||{};
 
-  // count distribution for both axes (skip Venezuela_note and the US entry)
-  var sc={}, dc={};
+  // count distribution (skip Venezuela_note and the US entry)
+  var sc={}, ec={};
   Object.keys(DOSSIER).forEach(function(k){
     if(k==="Venezuela_note") return;
     var d=DOSSIER[k];
     if(!d || d.state==="us") return;
     sc[d.state]=(sc[d.state]||0)+1;
-    if(d.delta) dc[d.delta]=(dc[d.delta]||0)+1;
+    var e=effectOf(d);
+    ec[e]=(ec[e]||0)+1;
   });
 
   // ----- state row -----
@@ -129,23 +220,24 @@ function buildLegend(){
   });
   L.appendChild(rowS);
 
-  // ----- delta row -----
-  var rowD=document.createElement("div"); rowD.className="legrow";
-  var lblD=document.createElement("span"); lblD.className="leglabel"; lblD.textContent="Shifted this term";
-  rowD.appendChild(lblD);
-  DELTA_ORDER.forEach(function(da){
+  // ----- effect row -----
+  var rowE=document.createElement("div"); rowE.className="legrow";
+  var lblE=document.createElement("span"); lblE.className="leglabel";
+  lblE.textContent = P.subject ? (P.subject+"'s effect") : "President's effect";
+  rowE.appendChild(lblE);
+  EFFECT_ORDER.forEach(function(e){
     var b=document.createElement("button");
-    b.innerHTML='<span class="darr" data-delta="'+da+'">'+da+'</span>'+
-                DELTA_NAME[da]+'<span class="count">'+(dc[da]||0)+'</span>';
-    if(hiddenDelta[da]) b.classList.add("dim");
+    b.innerHTML='<span class="darr" data-effect="'+e+'">'+EFFECT_GLYPH[e]+'</span>'+
+                EFFECT_NAME[e]+'<span class="count">'+(ec[e]||0)+'</span>';
+    if(hiddenEffect[e]) b.classList.add("dim");
     b.onclick=function(){
-      hiddenDelta[da]=!hiddenDelta[da];
-      b.classList.toggle("dim",!!hiddenDelta[da]);
+      hiddenEffect[e]=!hiddenEffect[e];
+      b.classList.toggle("dim",!!hiddenEffect[e]);
       paint(); paintDeltas();
     };
-    rowD.appendChild(b);
+    rowE.appendChild(b);
   });
-  L.appendChild(rowD);
+  L.appendChild(rowE);
 }
 
 /* Tabs: 'dossier' | 'askai'. Selecting a country/region brings Dossier
@@ -209,38 +301,119 @@ function showCountry(name){
   var sName =STATE_NAME [d.state]||"Unclassified";
   var sDesc =STATE_DESC [d.state]||"";
 
-  var pts=(d.points||[]).slice(), interp=false;
-  if(pts.length && pts[pts.length-1]==="interp"){interp=true;pts.pop();}
-  var safeReg=(d.region||"").replace(/'/g,"\\'");
+  // v3 fields with v2 back-compat
+  var eff       = effectOf(d);            // helped|mixed|hurt|unscored
+  var mag       = magnitudeOf(d);          // modest|material|major|null
+  var inherited = inheritedOf(d);          // v3 inherited || v2 baseline
+  var contested = isContestedEntry(d);     // v3 contested || trailing "interp"
+  var pts       = pointsOf(d);             // points minus the "interp" sentinel
+  var safeReg   = (d.region||"").replace(/'/g,"\\'");
 
-  var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+k+'</h2></div>';
+  var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+_escHtml(k)+'</h2></div>';
 
-  // state + delta badges (suppressed for the US entry)
+  // ----- Badges: state always; effect when the entry has been scored -----
   if(d.state!=="us"){
-    html+='<div class="badges">'+
-      '<span class="badge"><span class="sw" style="background:var('+sColor+')"></span>'+
-        '<b>'+sName+'</b>'+(sDesc?' &middot; '+sDesc:'')+'</span>';
-    if(d.delta && d.delta!=="—"){
-      html+='<span class="badge"><span class="darr" data-delta="'+d.delta+'">'+d.delta+'</span>'+
-            '<b>'+(DELTA_NAME[d.delta]||"")+'</b> &middot; vs. prior administration</span>';
+    html+='<div class="badges">';
+    html+='<span class="badge"><span class="sw" style="background:var('+sColor+')"></span>'+
+      '<b>'+_escHtml(sName)+'</b>'+(sDesc?' &middot; '+_escHtml(sDesc):'')+'</span>';
+    // Effect badge — only rendered when the entry actually carries an `effect`
+    // field. v2 entries (no `effect`) keep a clean state-only header until
+    // they've been re-derived to v3.
+    if(d.effect && EFFECT_NAME[d.effect]){
+      var effLabel = EFFECT_NAME[d.effect];
+      if(mag) effLabel += ' &middot; '+_escHtml(MAGNITUDE_NAME[mag]||mag);
+      if(d.effect==="unscored" && d.unscoredReason && UNSCORED_REASON_NAME[d.unscoredReason]){
+        effLabel += ' &middot; '+_escHtml(UNSCORED_REASON_NAME[d.unscoredReason]);
+      }
+      html+='<span class="badge"><span class="darr" data-effect="'+d.effect+'">'+EFFECT_GLYPH[d.effect]+'</span>'+
+            '<b>'+effLabel+'</b> &middot; net effect vs. inherited trajectory</span>';
     }
     html+='</div>';
   }
 
-  html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+(d.region||'')+' &rsaquo; view region</div>';
+  html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+_escHtml(d.region||'')+' &rsaquo; view region</div>';
 
-  // baseline block (skip if missing or em-dash)
-  if(d.baseline && d.baseline!=="—"){
-    html+='<div class="baseline"><span class="blab">Inherited from prior administration</span>'+d.baseline+'</div>';
+  // ----- Inherited trajectory (the fixed counterfactual) -----
+  if(inherited){
+    html+='<div class="baseline"><span class="blab">Inherited trajectory (the counterfactual)</span>'+inherited+'</div>';
   }
 
-  html+='<ul class="pts" style="--dotc:var('+sColor+')">';
-  pts.forEach(function(p){html+='<li>'+p+'</li>';});
-  html+='</ul>';
-
-  if(interp){
-    html+='<div class="interp">Interpretive placement — based on overall posture rather than a single named event; reasonable analysts could score this differently.</div>';
+  // ----- Outcome line: what HAPPENED to the US position (distinct from the
+  //       causal points, and distinct from the OUTCOMES best/base/down block) -----
+  if(d.outcome && d.outcome!=="—"){
+    html+='<div class="outcome-line"><span class="blab">What happened to the US position</span>'+d.outcome+'</div>';
   }
+
+  // ----- Points: the causal argument -----
+  if(pts.length){
+    html+='<ul class="pts" style="--dotc:var('+sColor+')">';
+    pts.forEach(function(p){html+='<li>'+p+'</li>';});
+    html+='</ul>';
+  }
+
+  // ----- Counterargument -----
+  if(d.counterargument && d.counterargument!=="—"){
+    html+='<div class="counterarg"><span class="blab">Strongest counterargument</span>'+d.counterargument+'</div>';
+  }
+
+  // ----- Meta chips: Role · Confidence · Evidence -----
+  var metaChips=[];
+  if(d.role)                            metaChips.push({lab:'Role',       val:d.role});
+  if(d.confidence)                      metaChips.push({lab:'Confidence', val:d.confidence});
+  if(d.evidence)                        metaChips.push({lab:'Evidence',   val:d.evidence});
+  if(metaChips.length){
+    html+='<div class="metachips">';
+    metaChips.forEach(function(c){
+      html+='<span class="metachip"><span class="mclab">'+c.lab+'</span><span class="mcval">'+_escHtml(c.val)+'</span></span>';
+    });
+    html+='</div>';
+  }
+
+  // ----- Conditional analytic notes, each a labelled single-line block -----
+  CONDITIONAL_NOTE_ORDER.forEach(function(field){
+    var v=d[field];
+    if(v && v!=="—"){
+      html+='<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+v+'</div>';
+    }
+  });
+
+  // ----- User-directed placement (Venezuela template) -----
+  if(d.userDirected){
+    html+='<div class="userdir"><span class="blab">User-directed placement</span>'+d.userDirected+'</div>';
+  }
+
+  // ----- Sources (label→url where url present) -----
+  if(d.sources && d.sources.length){
+    html+='<div class="sech">Sources</div><ul class="sources">';
+    d.sources.forEach(function(s){
+      if(!s) return;
+      var label = _escHtml(s.label||"");
+      if(s.url){
+        html+='<li><a href="'+_escHtml(s.url)+'" target="_blank" rel="noopener noreferrer">'+label+'</a></li>';
+      } else {
+        html+='<li>'+label+'</li>';
+      }
+    });
+    html+='</ul>';
+  }
+
+  // ----- Linked policies: clickable cross-card chips -----
+  if(d.linkedPolicies && d.linkedPolicies.length){
+    html+='<div class="sech">Linked policies</div><div class="linked-row">';
+    d.linkedPolicies.forEach(function(lp){
+      var safe=lp.replace(/'/g,"\\'");
+      html+='<button type="button" class="linkchip" onclick="showCountry(\''+safe+'\')">'+_escHtml(lp)+'</button>';
+    });
+    html+='</div>';
+  }
+
+  // ----- Contested marker (replaces the old v2 "interp" note) -----
+  if(contested){
+    html+='<div class="interp">Contested call &mdash; reasonable analysts could score this differently.</div>';
+  }
+
+  // ----- Existing OUTCOMES best/base/down (kept verbatim — distinct from the
+  //       v3 `outcome` field above) -----
   html+=outcomeBlock(k);
   html+='<div id="newsPanel" class="news-panel"><span class="aload">Loading headlines…</span></div>';
 
@@ -283,8 +456,8 @@ function paint(){
     var k=keyFor(d.properties.name);
     var entry=k?DOSSIER[k]:null;
     var s=entry?entry.state:null;
-    var da=entry?entry.delta:null;
-    var dim = !!s && (hiddenState[s] || (da && hiddenDelta[da]));
+    var e=entry?effectOf(entry):null;
+    var dim = !!s && (hiddenState[s] || (e && hiddenEffect[e]));
     var fill=(!s||dim) ? cssv("--nd") : cssv(STATE_COLOR[s]||"--s-neutral");
     var el=d3.select(this);
     el.attr("fill",fill);
@@ -320,16 +493,27 @@ function bestLabelTarget(feature, pathArg){
   return { cx: c[0], cy: c[1], w: bb[1][0]-bb[0][0], h: bb[1][1]-bb[0][1] };
 }
 
-/* ---- delta marks at country centroids (separate g-layer for z-order) ----
-   Each mark is sized to the country it sits inside, so a tiny island gets a
-   small mark and Russia gets a clamped (not giant) one. The mark is a soft
-   white-with-dark-outline arrow rotated to match the delta direction; the
-   "strong" deltas (↑↑ / ↓↓) use a stacked double chevron head. Countries too
-   small for an arrow get a dot fallback; ones too small even for that are
-   skipped entirely.
-*/
-function appendDeltaMark(parentG, cx, cy, delta, size){
-  // tiny: dot fallback — use screen-space size so zooming in promotes dot → arrow
+/* ---- effect marks at country centroids (separate g-layer for z-order) ----
+   Each mark is sized to the country it sits inside (size-to-country with a
+   clamp ceiling). Tiny countries get a dot fallback; the smallest are skipped.
+   `_zoomK` makes the size/dot thresholds screen-space, so zooming in promotes
+   dots to full arrows as countries grow on screen.
+
+   v3 semantics:
+     direction  ← effect    helped=up, hurt=down, mixed=short horizontal bar
+     weight     ← magnitude major=double chevron, material=single bold,
+                              modest=single light
+     unscored / missing effect → DRAW NOTHING (not even the dot fallback)
+   Styling: white inner stroke over a dark outline, exactly as before.       */
+function appendDeltaMark(parentG, cx, cy, effect, magnitude, size){
+  // unscored or unknown → no mark at all (per spec: do not fall back to dot).
+  if(!effect || effect==="unscored") return;
+  if(effect!=="helped" && effect!=="hurt" && effect!=="mixed") return;
+
+  // tiny-country dot fallback: state is still encoded by color; the dot just
+  // signals "there is an effect here" when the country is too small for a
+  // legible arrow. Threshold is screen-space (size * _zoomK) so zooming in
+  // promotes dot → arrow.
   if(size * _zoomK < 9){
     var r = Math.max(size * 0.34, 2);
     parentG.append("circle")
@@ -339,16 +523,27 @@ function appendDeltaMark(parentG, cx, cy, delta, size){
       .attr("stroke-width", 1.2);
     return;
   }
-  // delta -> rotation (up=0°, right=90°, down=180°) and head style
-  var deg, dbl;
-  if(delta === "↑↑"){ deg = 0;   dbl = true;  }
-  else if(delta === "↑"){ deg = 0;   dbl = false; }
-  else if(delta === "→"){ deg = 90;  dbl = false; }
-  else if(delta === "↓"){ deg = 180; dbl = false; }
-  else if(delta === "↓↓"){ deg = 180; dbl = true;  }
-  else return;
 
-  // up-pointing arrow geometry centered on (cx, cy); rotated below.
+  // --- Mixed: a single short horizontal bar through (cx, cy). No chevron. --
+  if(effect==="mixed"){
+    var barL = size * 0.7;
+    var dM = "M "+(cx-barL/2)+" "+cy+" L "+(cx+barL/2)+" "+cy;
+    var wIm = Math.max(size * 0.16, 1.4);
+    var wOm = wIm + Math.max(size * 0.12, 1.5);
+    parentG.append("path").attr("d", dM)
+      .attr("fill","none").attr("stroke","var(--arrow-outline)")
+      .attr("stroke-width", wOm).attr("stroke-linecap","round");
+    parentG.append("path").attr("d", dM)
+      .attr("fill","none").attr("stroke","var(--arrow-fill)")
+      .attr("stroke-width", wIm).attr("stroke-linecap","round");
+    return;
+  }
+
+  // --- Helped / Hurt: up- or down-pointing arrow. Geometry built up-facing
+  //     centered on (cx, cy) and rotated 180° for hurt. -----------------
+  var deg = (effect==="hurt") ? 180 : 0;
+  var dbl = (magnitude==="major");   // double chevron for major
+
   var s = size * 0.5;
   var c = size * 0.30;
   var g = size * 0.26;
@@ -358,8 +553,17 @@ function appendDeltaMark(parentG, cx, cy, delta, size){
     d += " M "+(cx-c)+" "+(cy-s+c+g)+" L "+cx+" "+(cy-s+g)+" L "+(cx+c)+" "+(cy-s+c+g);
   }
 
-  var wI = Math.max(size * 0.15, 1.3);
-  var wO = wI + Math.max(size * 0.12, 1.5);
+  // Stroke weight scales with magnitude. modest is the lighter variant;
+  // material is the default; major already reads heavy via the double head.
+  var wI, wO;
+  if(magnitude==="modest"){
+    wI = Math.max(size * 0.12, 1.05);
+    wO = wI + Math.max(size * 0.10, 1.2);
+  } else {
+    // material (default) and major
+    wI = Math.max(size * 0.15, 1.3);
+    wO = wI + Math.max(size * 0.12, 1.5);
+  }
 
   var grp = parentG.append("g")
     .attr("transform", "rotate("+deg+" "+cx+" "+cy+")");
@@ -386,15 +590,17 @@ function paintDeltas(){
     var k=keyFor(f.properties.name);
     if(!k) return;
     var d=DOSSIER[k];
-    if(!d || !d.delta || d.delta==="—" || d.state==="us") return;
-    if(hiddenState[d.state] || hiddenDelta[d.delta]) return;
+    if(!d || d.state==="us") return;
+    var e=effectOf(d);
+    if(e==="unscored") return;                     // no arrow for unscored / v2
+    if(hiddenState[d.state] || hiddenEffect[e]) return;
     if(selRegion && regionOf[k]!==selRegion) return;
     var pos = bestLabelTarget(f);
     if(!pos) return;
     var m = Math.min(pos.w, pos.h);
-    if(m * _zoomK < 5) return;           // too small for any mark even at this zoom
-    var size = Math.min(m * 0.34, 30);   // 30 = ceiling so huge countries aren't giant
-    appendDeltaMark(gD, pos.cx, pos.cy, d.delta, size);
+    if(m * _zoomK < 5) return;                     // screen-space skip; zooming exposes more arrows
+    var size = Math.min(m * 0.34, 30);             // ceiling so huge countries aren't giant
+    appendDeltaMark(gD, pos.cx, pos.cy, e, magnitudeOf(d), size);
   });
 }
 
@@ -448,7 +654,11 @@ function buildRegionGeometry(){
 
 function renderHeader(){
   var P=window.PRESIDENTS[CURRENT]||{};
-  var hl=document.getElementById("hl");    if(hl) hl.textContent=P.headline||"Foreign Policy Atlas";
+  // President-agnostic fallback: when there's no explicit headline override,
+  // derive one from P.subject so the title isn't hard-coded to any one POTUS.
+  var fallback = P.subject ? ("How has "+P.subject+" reshaped US foreign policy?")
+                            : "Foreign Policy Atlas";
+  var hl=document.getElementById("hl");    if(hl) hl.textContent=P.headline||fallback;
   var bl=document.getElementById("blurb"); if(bl) bl.innerHTML=P.blurb||"";
   var ft=document.getElementById("foot");  if(ft) ft.innerHTML=P.foot||"";
   var ao=document.getElementById("asof");  if(ao) ao.textContent=P.asOf?("As of "+P.asOf):"";
@@ -469,7 +679,7 @@ function populateSelector(){
 function switchPresident(id){
   if(!window.PRESIDENTS[id]) return;
   loadPresident(id);
-  selName=null; selRegion=null; hiddenState={}; hiddenDelta={};
+  selName=null; selRegion=null; hiddenState={}; hiddenEffect={};
   renderHeader();
   buildLegend();
   buildRegionGeometry();
@@ -758,35 +968,68 @@ function _keyForIn(name, dossier){
   return null;
 }
 
+/* Per-entry summary for the LLM context. Reads v3 fields with v2 back-compat:
+   missing `effect` → "unscored"; missing `inherited` → use `baseline`. */
+function _entrySummary(d){
+  if(!d) return "";
+  var L=[];
+  L.push("State: "+(STATE_NAME[d.state]||d.state)+".");
+  var e=effectOf(d), m=magnitudeOf(d);
+  L.push("Effect: "+(EFFECT_NAME[e]||e)+(m?(" ("+MAGNITUDE_NAME[m]+")"):"")+".");
+  if(e==="unscored" && d.unscoredReason)
+    L.push("Unscored reason: "+(UNSCORED_REASON_NAME[d.unscoredReason]||d.unscoredReason)+".");
+  if(d.role)        L.push("Role: "+d.role+".");
+  if(d.confidence)  L.push("Confidence: "+d.confidence+".");
+  if(d.evidence)    L.push("Evidence: "+d.evidence+".");
+  if(d.contested)   L.push("Contested: yes.");
+  var inh=inheritedOf(d);
+  if(inh)           L.push("Inherited trajectory: "+inh);
+  if(d.outcome && d.outcome!=="—")
+                    L.push("Outcome (what happened to US position): "+d.outcome);
+  var pts=pointsOf(d);
+  if(pts.length)    L.push("Causal argument:\n"+pts.map(function(p){return "• "+p;}).join("\n"));
+  if(d.counterargument && d.counterargument!=="—")
+                    L.push("Counterargument: "+d.counterargument);
+  CONDITIONAL_NOTE_ORDER.forEach(function(field){
+    if(d[field] && d[field]!=="—")
+      L.push(CONDITIONAL_NOTE_LABEL[field]+": "+d[field]);
+  });
+  if(d.userDirected)L.push("User-directed placement note: "+d.userDirected);
+  return L.join("\n");
+}
+
 function buildContext(){
   var ids=presidentList();
   var lines=[
-    "You are an analytical assistant for the Foreign Policy Atlas, a ledger of U.S. foreign-policy alignment across administrations.",
+    "You are an analytical assistant for the Foreign Policy Atlas, a sourced ledger of U.S. foreign-policy posture across administrations.",
     "Loaded presidents: "+ids.map(function(id){return (window.PRESIDENTS[id].label||id)+" (as of "+(window.PRESIDENTS[id].asOf||"unknown")+")";}).join("; ")+".",
     "Currently displayed on the map: "+((window.PRESIDENTS[CURRENT]||{}).label||CURRENT)+".",
-    "States: Core Ally | Aligned | Neutral | Strained | Adversarial.",
-    "Deltas (↑↑ ↑ → ↓ ↓↓): change from the prior administration's baseline."
+    "",
+    "The atlas reads on TWO INDEPENDENT AXES:",
+    "  • state  — where the U.S. relationship STANDS today: Core Ally | Aligned | Neutral | Strained | Adversarial.",
+    "  • effect — what THIS president CAUSED vs. the inherited trajectory: helped | mixed | hurt | unscored.",
+    "Magnitude (modest | material | major) applies only to helped/hurt.",
+    "`effect` is measured against the `inherited` field (the fixed counterfactual), not against an idealized baseline.",
+    "Treat `outcome` (what happened to the US position) as distinct from `effect` (the president's causal contribution).",
+    "Entries without an `effect` field are legacy/awaiting migration; treat them as unscored and rely on `state` plus any `inherited`/points."
   ];
 
   if(selName){
-    lines.push("","=== Country: "+selName+" — across all presidents ===");
+    lines.push("","=== Country: "+selName+" — across all loaded presidents ===");
     ids.forEach(function(id){
       var P=window.PRESIDENTS[id];
       var dos=P.dossier||{}, outs=P.outcomes||{};
       var k=_keyForIn(selName,dos);
       var d=k?dos[k]:null;
       lines.push("","-- "+(P.label||id)+" --");
-      if(!d){lines.push("No individual entry for this country under this administration."); return;}
-      lines.push("State: "+(STATE_NAME[d.state]||d.state)+". Delta: "+(d.delta||"—")+".");
-      if(d.baseline&&d.baseline!=="—") lines.push("Inherited baseline: "+d.baseline);
-      var pts=(d.points||[]).filter(function(p){return p!=="interp";});
-      if(pts.length) lines.push("Evidence:\n"+pts.map(function(p){return "• "+p;}).join("\n"));
+      if(!d){ lines.push("No individual entry for this country under this administration."); return; }
+      lines.push(_entrySummary(d));
       var o=outs[k];
       if(o&&o.best&&o.best!=="—")
-        lines.push("Outcomes — Best: "+o.best+" | Base: "+o.base+" | Downside: "+o.down);
+        lines.push("Projected outcomes — Best: "+o.best+" | Base: "+o.base+" | Downside: "+o.down);
     });
   } else if(selRegion){
-    lines.push("","=== Region: "+selRegion+" — across all presidents ===");
+    lines.push("","=== Region: "+selRegion+" — across all loaded presidents ===");
     ids.forEach(function(id){
       var P=window.PRESIDENTS[id];
       var dos=P.dossier||{}, regs=P.regions||{};
@@ -801,26 +1044,35 @@ function buildContext(){
       }
       var rc=Object.keys(dos).filter(function(k){return dos[k]&&dos[k].region===selRegion&&dos[k].state!=="us"&&k!=="Venezuela_note";});
       if(rc.length){
-        lines.push("Countries:");
+        lines.push("Countries in this region (state · effect [magnitude]):");
         rc.forEach(function(k){
-          var d=dos[k];
-          lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" (delta: "+(d.delta||"—")+")");
+          var d=dos[k], m=magnitudeOf(d);
+          lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" · "+EFFECT_NAME[effectOf(d)]+(m?(" ("+MAGNITUDE_NAME[m]+")"):"")+
+                     (d.contested?" [contested]":""));
         });
       }
     });
   } else {
-    lines.push("","=== Full atlas — all presidents ===");
+    lines.push("","=== Full atlas — all loaded presidents ===");
     ids.forEach(function(id){
       var P=window.PRESIDENTS[id];
       var dos=P.dossier||{};
       var keys=Object.keys(dos).filter(function(k){return dos[k]&&dos[k].state!=="us"&&k!=="Venezuela_note";});
       lines.push("","-- "+(P.label||id)+" ("+keys.length+" entries) --");
-      var counts={};
-      keys.forEach(function(k){var s=dos[k].state; counts[s]=(counts[s]||0)+1;});
-      STATE_ORDER.forEach(function(s){if(counts[s])lines.push("  "+(STATE_NAME[s]||s)+": "+counts[s]);});
+      var sCounts={}, eCounts={};
       keys.forEach(function(k){
         var d=dos[k];
-        lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" delta:"+(d.delta||"—")+" region:"+(d.region||"—"));
+        sCounts[d.state]=(sCounts[d.state]||0)+1;
+        var e=effectOf(d); eCounts[e]=(eCounts[e]||0)+1;
+      });
+      var sParts=[]; STATE_ORDER.forEach(function(s){if(sCounts[s])sParts.push(STATE_NAME[s]+" "+sCounts[s]);});
+      var eParts=[]; EFFECT_ORDER.forEach(function(e){if(eCounts[e])eParts.push(EFFECT_NAME[e]+" "+eCounts[e]);});
+      if(sParts.length) lines.push("  By state:  "+sParts.join(" | "));
+      if(eParts.length) lines.push("  By effect: "+eParts.join(" | "));
+      keys.forEach(function(k){
+        var d=dos[k], m=magnitudeOf(d);
+        lines.push("  "+k+": "+(STATE_NAME[d.state]||d.state)+" · "+EFFECT_NAME[effectOf(d)]+(m?(" ("+MAGNITUDE_NAME[m]+")"):"")+
+                   " · region:"+(d.region||"—")+(d.contested?" [contested]":""));
       });
     });
   }

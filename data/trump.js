@@ -17,7 +17,7 @@ window.PRESIDENTS["trump"] = {
   id: "trump",
   label: "Donald Trump — 2nd term",
   headline: "U.S. Strategic Position — Trump Second Term",
-  blurb: "A country-by-country snapshot of U.S. foreign-policy alignment as of May 2026, using the Trump second term as the measurement period. Each entry shows where the relationship <i>stands</i> (state) and how it <i>changed</i> from the Biden-era baseline (delta) &mdash; the agreements, friction points, and dynamics behind each rating, plus a best / base / downside outcome projection.",
+  blurb: "Alignment state &amp; shift from the Biden baseline, by country &amp; region &mdash; May 2026",
   asOf: "May 2026 (projected timeline)",
   foot:
   "<b>Method &amp; caveats.</b> Every entry uses a two-axis read. "+

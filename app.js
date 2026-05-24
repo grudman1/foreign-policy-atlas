@@ -652,7 +652,21 @@ function paintDeltas(){
     var m = Math.min(pos.w, pos.h);
     if(m * _zoomK < 5) return;                     // screen-space skip; zooming exposes more arrows
     var size = Math.min(m * 0.34, 30);             // ceiling so huge countries aren't giant
-    appendDeltaMark(gD, pos.cx, pos.cy, e, magnitudeOf(d), size);
+
+    // Wrap in a <g> so the whole mark (plus a transparent hit circle) is clickable
+    var hitG = gD.append("g")
+      .attr("class","delta-hit")
+      .style("cursor","pointer")
+      .on("click", (function(name){ return function(ev){
+        ev.stopPropagation();
+        showCountry(name);
+      }; })(k));
+    // Invisible circle behind the mark so small arrows are still easy to tap/click
+    var hitR = Math.max(size * 0.65, 9) / _zoomK;
+    hitG.append("circle")
+      .attr("cx", pos.cx).attr("cy", pos.cy).attr("r", hitR)
+      .attr("fill","transparent").attr("stroke","none");
+    appendDeltaMark(hitG, pos.cx, pos.cy, e, magnitudeOf(d), size);
   });
 }
 

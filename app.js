@@ -772,36 +772,25 @@ var PHY_RIVERS = { type:"FeatureCollection", features:[
   {type:"Feature",geometry:{type:"LineString",coordinates:[[-52,-23],[-57,-21],[-58,-17],[-58,-24],[-59,-33],[-58,-34]]}}      // Parana
 ]};
 
-var PHY_MOUNTAINS = { type:"FeatureCollection", features:[
-  // Himalayas & high Tibetan rim
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[66,34],[72,33],[78,31],[85,28],[92,26],[97,25],[97,28],[92,30],[85,31],[78,34],[72,36],[66,36],[66,34]]]}},
-  // Hindu Kush / Karakoram / Pamir
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[58,36],[75,36],[75,39],[58,39],[58,36]]]}},
-  // Alps
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[5,43.5],[17,46],[17,48],[5,46],[5,43.5]]]}},
-  // Caucasus
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[37,40],[50,40],[50,44],[37,44],[37,40]]]}},
-  // Zagros (Iran / Iraq border)
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[44,27],[58,27],[58,37],[44,37],[44,27]]]}},
-  // Ural Mountains
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[56,50],[63,50],[63,68],[56,68],[56,50]]]}},
-  // Scandinavian Mountains
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[4,57],[18,57],[25,70],[11,70],[4,57]]]}},
-  // Atlas Mountains
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-6,30],[11,30],[11,36],[-6,36],[-6,30]]]}},
-  // Ethiopian Highlands
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[33,5],[43,5],[43,15],[33,15],[33,5]]]}},
-  // Tian Shan / Altai
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[68,40],[95,40],[95,50],[68,50],[68,40]]]}},
-  // Rocky Mountains / Sierra Nevada
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-128,48],[-103,32],[-108,32],[-125,48],[-128,48]]]}},
-  // Appalachians
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-86,30],[-80,30],[-67,47],[-73,47],[-86,30]]]}},
-  // Andes
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-82,11],[-65,-16],[-68,-55],[-76,-55],[-80,-16],[-82,11]]]}},
-  // Great Dividing Range (Australia)
-  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[148,-11],[154,-11],[151,-38],[145,-38],[148,-11]]]}}
-]};
+/* Mountain range label points — each renders as a row of "^^^" symbols.
+   Two entries for the same range give a double row (Himalayas, Andes).
+   [lon, lat, size-scale] — scale is relative to the base 6.5px. */
+var MTN_SYMBOLS = [
+  [83, 29, 1.05], [83, 27, 1.05],   // Himalayas (two rows)
+  [68, 37, 0.85],                    // Hindu Kush / Karakoram
+  [11, 46, 0.85],                    // Alps
+  [44, 42, 0.80],                    // Caucasus
+  [50, 32, 0.80],                    // Zagros
+  [60, 60, 0.78],                    // Urals
+  [14, 63, 0.78],                    // Scandinavian Mountains
+  [ 2, 33, 0.78],                    // Atlas
+  [38,  9, 0.78],                    // Ethiopian Highlands
+  [80, 44, 0.88],                    // Tian Shan / Altai
+  [-113, 44, 0.92],                  // Rocky Mountains
+  [ -79, 38, 0.78],                  // Appalachians
+  [ -70,-15, 0.92], [-70,-28, 0.92], // Andes (two rows)
+  [149, -25, 0.78]                   // Great Dividing Range
+];
 
 function startMap(){
   d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(world){
@@ -832,8 +821,6 @@ function startMap(){
       .attr("class","phy-ocean").attr("d",geoPath);
     gMap.append("path").datum(d3.geoGraticule().step([30,30])())
       .attr("class","phy-graticule").attr("d",geoPath);
-    gMap.append("path").datum(PHY_RIVERS)
-      .attr("class","phy-rivers").attr("d",geoPath);
 
     var gC=gMap.append("g");
     gC.selectAll("path").data(feats).join("path")
@@ -852,9 +839,21 @@ function startMap(){
       return null;
     };
 
-    // Mountains above country fills so they're visible (multiply blend darkens terrain areas)
-    gMap.append("path").datum(PHY_MOUNTAINS)
-      .attr("class","phy-mtns").attr("d",geoPath);
+    // Rivers above country fills so they're visible
+    gMap.append("path").datum(PHY_RIVERS)
+      .attr("class","phy-rivers").attr("d",geoPath);
+
+    // Mountain "^^^" symbols — placed above country fills
+    var gMtn=gMap.append("g").attr("class","mtn-layer");
+    MTN_SYMBOLS.forEach(function(m){
+      var pt=proj([m[0],m[1]]);
+      if(!pt||isNaN(pt[0])) return;
+      gMtn.append("text").attr("class","mtn-sym")
+        .attr("x",pt[0]).attr("y",pt[1])
+        .attr("text-anchor","middle").attr("dominant-baseline","central")
+        .style("font-size",(6.5*m[2])+"px")
+        .text("^^^");
+    });
 
     gOut=gMap.append("g");   // region outline group (rebuilt per president)
     gD =gMap.append("g").attr("class","delta-layer"); // delta chevrons

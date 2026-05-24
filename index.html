@@ -436,9 +436,15 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   padding:3px 10px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--ink2)}
 .metachip .mclab{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);font-weight:600}
 .metachip .mcval{color:var(--ink);font-weight:500;text-transform:capitalize}
-.condnote{font-size:12.6px;line-height:1.5;margin:6px 0 0;color:var(--ink2)}
-.condnote-lab{display:inline-block;font-size:10px;text-transform:uppercase;
-  letter-spacing:.06em;color:var(--ink3);font-weight:600;margin-right:6px}
+/* Each labelled note (Five Levers row, conditional note) renders as a
+   self-contained block: bold uppercase label on its own line, prose
+   underneath, with a thin divider between siblings so the section scans
+   cleanly. Avoids the inline label-runs-into-text problem. */
+.condnote{font-size:13px;line-height:1.55;color:var(--ink2);
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--line2)}
+.condnote:first-child{margin-top:4px;padding-top:0;border-top:0}
+.condnote-lab{display:block;font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink3);font-weight:600;margin-bottom:6px}
 .sources{margin:4px 0 0;padding:0;list-style:none;font-size:12.4px;line-height:1.5}
 .sources li{padding:3px 0;color:var(--ink2)}
 .sources a{color:var(--accent);text-decoration:none}

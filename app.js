@@ -433,15 +433,19 @@ function _buildLeversHtml(d){
     LEVER_ORDER.forEach(function(id){
       var prose=d.levers[id];
       if(prose && prose!=="—"){
-        rows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+prose+'</div>';
+        // _renderProseBlock paragraph-splits multi-sentence lever values so
+        // they don't read as one run-on wall under the label.
+        rows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+
+              _renderProseBlock(prose)+'</div>';
       }
     });
   } else if(Array.isArray(d.levers) && d.levers.length){
     d.levers.forEach(function(L){
       if(!L || !L.lever) return;
       var label=LEVER_LABEL[L.lever]||L.lever;
-      var sign =L.sign ? ' &middot; '+_escHtml(L.sign) : '';
-      rows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+sign+'</div>';
+      var sign =L.sign ? _escHtml(L.sign) : '';
+      rows+='<div class="condnote"><span class="condnote-lab">'+label+'</span>'+
+            (sign?'<p class="prose-p">'+sign+'</p>':'')+'</div>';
     });
   }
   return rows;
@@ -586,7 +590,10 @@ function showCountry(name){
   CONDITIONAL_NOTE_ORDER.forEach(function(field){
     var v=d[field];
     if(v && v!=="—"){
-      anHtml += '<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+v+'</div>';
+      // _renderProseBlock paragraph-splits multi-sentence notes so the label
+      // sits on its own line above clean paragraphs (not a run-on wall).
+      anHtml += '<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+
+                _renderProseBlock(v)+'</div>';
     }
   });
   if(d.userDirected){

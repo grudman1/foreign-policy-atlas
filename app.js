@@ -750,6 +750,28 @@ var _mapZoom=null;  // d3.zoom behavior, exposed for reset
 
 /* Simplified polygon footprints of major mountain ranges — used purely as
    a visual geographic cue; coordinates are approximate ridge-area outlines. */
+/* Major river centerlines — hardcoded so there's no CDN dependency.
+   Coordinates are [lon, lat] approximate ridge/centerline paths. */
+var PHY_RIVERS = { type:"FeatureCollection", features:[
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[-74,-5],[-70,-4],[-65,-3],[-60,-3],[-55,-2],[-50,-1],[-48,-1]]}},  // Amazon
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[-96,46],[-96,44],[-93,41],[-91,38],[-91,33],[-89,29]]}},           // Mississippi
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[32,0],[31,5],[33,10],[33,15],[31,22],[32,28],[31,30]]}},            // Nile
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[17,-7],[18,-4],[17,-1],[18,1],[16,2]]}},                           // Congo
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[92,32],[97,31],[100,28],[104,29],[108,30],[114,30],[118,31],[121,31]]}}, // Yangtze
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[96,35],[103,37],[106,38],[109,37],[111,36],[114,35],[119,37]]}},    // Yellow River
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[94,28],[100,22],[102,18],[104,14],[105,12],[106,10]]}},             // Mekong
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[78,31],[80,28],[83,26],[87,24],[88,23],[90,23],[92,24]]}},          // Ganges-Brahmaputra
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[80,33],[75,32],[72,29],[68,25],[67,24]]}},                         // Indus
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[32,57],[36,56],[44,53],[49,47],[51,46]]}},                         // Volga
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[8,48],[13,48],[16,48],[18,47],[20,46],[25,45],[28,45],[30,46]]}},   // Danube
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[-8,11],[-3,14],[2,15],[8,15],[8,12],[5,8],[3,6]]}},                // Niger
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[62,53],[63,58],[66,62],[69,65],[67,67]]}},                         // Ob
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[93,52],[92,55],[90,60],[87,65],[83,68],[80,69]]}},                 // Yenisei
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[111,55],[115,57],[120,60],[124,62],[126,66],[127,68],[129,70]]}},   // Lena
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[-118,59],[-122,62],[-128,65],[-133,68],[-135,69]]}},               // Mackenzie
+  {type:"Feature",geometry:{type:"LineString",coordinates:[[-52,-23],[-57,-21],[-58,-17],[-58,-24],[-59,-33],[-58,-34]]}}      // Parana
+]};
+
 var PHY_MOUNTAINS = { type:"FeatureCollection", features:[
   // Himalayas & high Tibetan rim
   {type:"Feature",geometry:{type:"Polygon",coordinates:[[[66,34],[72,33],[78,31],[85,28],[92,26],[97,25],[97,28],[92,30],[85,31],[78,34],[72,36],[66,36],[66,34]]]}},
@@ -782,11 +804,7 @@ var PHY_MOUNTAINS = { type:"FeatureCollection", features:[
 ]};
 
 function startMap(){
-  Promise.all([
-    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"),
-    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@1/world/110m.json").catch(function(){return null;})
-  ]).then(function(results){
-    var world=results[0], phys=results[1];
+  d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(world){
     var host=document.getElementById("map");host.textContent="";
     var feats=topojson.feature(world,world.objects.countries).features
               .filter(function(d){return d.properties.name!=="Antarctica";});
@@ -809,19 +827,13 @@ function startMap(){
     // Single transform group that gets the zoom/pan; all map layers live inside it
     var gMap = svgSel.append("g").attr("class","zoom-group");
 
-    // Physical geography — ocean sphere, graticule, rivers, lakes (all below country fill)
+    // Base physical layers (below country fills)
     gMap.append("path").datum({type:"Sphere"})
       .attr("class","phy-ocean").attr("d",geoPath);
     gMap.append("path").datum(d3.geoGraticule().step([30,30])())
       .attr("class","phy-graticule").attr("d",geoPath);
-    if(phys && phys.objects.rivers)
-      gMap.append("path").datum(topojson.feature(phys,phys.objects.rivers))
-        .attr("class","phy-rivers").attr("d",geoPath);
-    if(phys && phys.objects.lakes)
-      gMap.append("path").datum(topojson.feature(phys,phys.objects.lakes))
-        .attr("class","phy-lakes").attr("d",geoPath);
-    gMap.append("path").datum(PHY_MOUNTAINS)
-      .attr("class","phy-mtns").attr("d",geoPath);
+    gMap.append("path").datum(PHY_RIVERS)
+      .attr("class","phy-rivers").attr("d",geoPath);
 
     var gC=gMap.append("g");
     gC.selectAll("path").data(feats).join("path")
@@ -839,6 +851,10 @@ function startMap(){
       if(alt[k]&&nameToFeat[alt[k]])return nameToFeat[alt[k]];
       return null;
     };
+
+    // Mountains above country fills so they're visible (multiply blend darkens terrain areas)
+    gMap.append("path").datum(PHY_MOUNTAINS)
+      .attr("class","phy-mtns").attr("d",geoPath);
 
     gOut=gMap.append("g");   // region outline group (rebuilt per president)
     gD =gMap.append("g").attr("class","delta-layer"); // delta chevrons

@@ -47,7 +47,7 @@
   --good:#5f9618; --mid:#B07D1A; --bad:#C2403F;
   --lbl:#4F4D44; --lblbg:#FFFFFF;
   --arrow-fill:#FFFFFF; --arrow-outline:#161616;
-  --ocean:#B8C8D8; --water:#7A9EBA;
+  --ocean:#B8C8D8; --water:#7A9EBA; --mtn-fill:rgba(100,80,55,0.07); --mtn-stroke:rgba(100,80,55,0.22);
 
   /* Floating chrome shadows */
   --shadow-float:0 6px 24px rgba(31, 30, 24, 0.10), 0 1px 3px rgba(31, 30, 24, 0.05);
@@ -79,7 +79,7 @@
     --good:#97C459; --mid:#D4A53A; --bad:#E97A79;
     --lbl:#A8A69B; --lblbg:#22242A;
     --arrow-fill:#FFFFFF; --arrow-outline:#161616;
-    --ocean:#1C2B3A; --water:#2D4558;
+    --ocean:#1C2B3A; --water:#2D4558; --mtn-fill:rgba(160,130,90,0.07); --mtn-stroke:rgba(160,130,90,0.18);
     --shadow-float:0 6px 24px rgba(0,0,0,0.40), 0 1px 3px rgba(0,0,0,0.20);
     --shadow-deep:0 18px 52px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.25);
   }
@@ -111,6 +111,7 @@ body{
 .phy-graticule{fill:none;stroke:var(--water);stroke-width:0.3;opacity:0.35;pointer-events:none}
 .phy-rivers{fill:none;stroke:var(--water);stroke-width:0.55;opacity:0.65;pointer-events:none}
 .phy-lakes{fill:var(--water);opacity:0.45;stroke:none;pointer-events:none}
+.phy-mtns{fill:var(--mtn-fill);stroke:var(--mtn-stroke);stroke-width:0.5;stroke-linejoin:round;pointer-events:none}
 .cty{cursor:pointer;transition:opacity .15s, stroke-width .15s}
 .cty:hover{opacity:.78}
 .cty.sel{stroke:var(--ink);stroke-width:1.4}
@@ -301,16 +302,18 @@ body{
   transition:border-color .15s, color .15s;
 }
 .dock-overview:hover{border-color:var(--accent);color:var(--ink)}
-.dock-body{flex:1;min-height:0;position:relative;overflow:hidden}
+.dock-body{flex:1;min-height:0;position:relative;overflow:hidden;pointer-events:none}
 .dock-pane{
   position:absolute;inset:0;
-  overflow-y:auto;overflow-x:hidden;
+  overflow:hidden;
   opacity:0;pointer-events:none;
   transition:opacity .22s ease;
 }
-.dock-pane.on{opacity:1;pointer-events:auto}
-.pinner{padding:18px 20px 22px}
-.aspane{padding:16px 18px 20px}
+.dock-pane.on{opacity:1;pointer-events:none}
+/* Scroll and hit-test live on the inner container so the empty area below
+   short content passes pointer events through to the map beneath */
+.pinner{padding:18px 20px 22px;overflow-y:auto;overflow-x:hidden;max-height:100%;pointer-events:auto}
+.aspane{padding:16px 18px 20px;overflow-y:auto;overflow-x:hidden;max-height:100%;pointer-events:auto}
 
 /* ---- Dossier content (preserves every credibility signal) ---- */
 .ph{display:flex;align-items:center;gap:9px;margin-bottom:4px}

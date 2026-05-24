@@ -17,7 +17,7 @@ export default async function handler(req) {
   const url =
     "https://api.gdeltproject.org/api/v2/doc/doc" +
     "?query=" + query +
-    "&mode=artlist&maxrecords=5&format=json" +
+    "&mode=artlist&maxrecords=3&format=json" +
     "&timespan=1month&sourcelang=english&sortby=hybridrel";
 
   try {

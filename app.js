@@ -482,6 +482,39 @@ function switchPresident(id){
 
 var _mapZoom=null;  // d3.zoom behavior, exposed for reset
 
+/* Simplified polygon footprints of major mountain ranges — used purely as
+   a visual geographic cue; coordinates are approximate ridge-area outlines. */
+var PHY_MOUNTAINS = { type:"FeatureCollection", features:[
+  // Himalayas & high Tibetan rim
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[66,34],[72,33],[78,31],[85,28],[92,26],[97,25],[97,28],[92,30],[85,31],[78,34],[72,36],[66,36],[66,34]]]}},
+  // Hindu Kush / Karakoram / Pamir
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[58,36],[75,36],[75,39],[58,39],[58,36]]]}},
+  // Alps
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[5,43.5],[17,46],[17,48],[5,46],[5,43.5]]]}},
+  // Caucasus
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[37,40],[50,40],[50,44],[37,44],[37,40]]]}},
+  // Zagros (Iran / Iraq border)
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[44,27],[58,27],[58,37],[44,37],[44,27]]]}},
+  // Ural Mountains
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[56,50],[63,50],[63,68],[56,68],[56,50]]]}},
+  // Scandinavian Mountains
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[4,57],[18,57],[25,70],[11,70],[4,57]]]}},
+  // Atlas Mountains
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-6,30],[11,30],[11,36],[-6,36],[-6,30]]]}},
+  // Ethiopian Highlands
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[33,5],[43,5],[43,15],[33,15],[33,5]]]}},
+  // Tian Shan / Altai
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[68,40],[95,40],[95,50],[68,50],[68,40]]]}},
+  // Rocky Mountains / Sierra Nevada
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-128,48],[-103,32],[-108,32],[-125,48],[-128,48]]]}},
+  // Appalachians
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-86,30],[-80,30],[-67,47],[-73,47],[-86,30]]]}},
+  // Andes
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[-82,11],[-65,-16],[-68,-55],[-76,-55],[-80,-16],[-82,11]]]}},
+  // Great Dividing Range (Australia)
+  {type:"Feature",geometry:{type:"Polygon",coordinates:[[[148,-11],[154,-11],[151,-38],[145,-38],[148,-11]]]}}
+]};
+
 function startMap(){
   Promise.all([
     d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"),
@@ -521,6 +554,8 @@ function startMap(){
     if(phys && phys.objects.lakes)
       gMap.append("path").datum(topojson.feature(phys,phys.objects.lakes))
         .attr("class","phy-lakes").attr("d",geoPath);
+    gMap.append("path").datum(PHY_MOUNTAINS)
+      .attr("class","phy-mtns").attr("d",geoPath);
 
     var gC=gMap.append("g");
     gC.selectAll("path").data(feats).join("path")

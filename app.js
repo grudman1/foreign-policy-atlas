@@ -483,7 +483,16 @@ function showCountry(name){
   var outFull  = (d.outcome && d.outcome!=="—") ? d.outcome : "";
   var outSplit = _splitOutcomeHeadline(outFull);
 
-  var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+_escHtml(k)+'</h2></div>';
+  var expHtml='';
+  var expList=(window.COUNTRY_EXPORTS||{})[k];
+  if(expList && expList.length){
+    expHtml='<span class="exports" title="Top exports" aria-label="Top exports">';
+    expList.slice(0,3).forEach(function(x){
+      expHtml+='<span class="exp-sym" title="'+_escHtml(x.label||'')+'" aria-label="'+_escHtml(x.label||'')+'">'+(x.sym||'')+'</span>';
+    });
+    expHtml+='</span>';
+  }
+  var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+_escHtml(k)+'</h2>'+expHtml+'</div>';
 
   // ===== SUMMARY (always visible): badges + region + Inherited → Now =========
 

@@ -8,9 +8,11 @@ chat stays consistent. Keep the two copies in sync.
 > **v3 — the "President Effect" model.** This replaces the old tier 1–6 rubric.
 > The map now reads on **two independent axes**: a **state** (the color — where
 > the relationship stands today) and an **effect** (the arrow — what *this*
-> president caused, measured against the trajectory they inherited). If you are
-> reading an entry that still uses a `tier` field or `"interp"` in `points[]`,
-> it is a v2 entry awaiting migration (see *Migration* at the bottom).
+> president caused, measured against the trajectory they inherited).
+> v2-shape entries (a `tier` field, a `delta` arrow, or `"interp"` in `points[]`)
+> live **only** in the non-loaded `data/_trump-v2-scaffold.js` archive — they
+> are unsourced leads awaiting re-derivation, not finished claims (see
+> *Migration* at the bottom).
 
 ## What this project is
 
@@ -235,13 +237,18 @@ and the optional `systems`.
 
 ## Migration (v2 → v3)
 
-Existing `data/trump.js` is v2 (`tier`/`state`+`delta`, `baseline`, `"interp"`).
-It is **scaffolding to re-derive, not relabel.** When migrating an entry:
-`baseline` → `inherited` (sharpen into an explicit counterfactual); the warmth
-`delta` is *discarded* — re-derive `effect` causally; `"interp"` in `points[]` →
-`contested: true`; add `outcome`, `role`, `confidence`, `evidence`,
-`counterargument`, `sources`. Re-source every `points` bullet; if you can't, the
-entry goes `unscored`.
+`data/trump.js` is **v3 now** — the live file holds the US home entry plus
+re-derived v3 country entries (China is the first one to ship). The original
+v2 ledger lives **only** in `data/_trump-v2-scaffold.js`: an inert reference
+file, not loaded by `index.html` and not registered on `window.PRESIDENTS`.
+Treat scaffold content as starting points to re-source, never as finished
+claims to copy.
+
+When re-deriving an entry from the scaffold: `baseline` → `inherited` (sharpen
+into an explicit counterfactual); the warmth `delta` is *discarded* — re-derive
+`effect` causally; `"interp"` in `points[]` → `contested: true`; add `outcome`,
+`role`, `confidence`, `evidence`, `counterargument`, `sources`. Re-source every
+`points` bullet; if you can't, the entry goes `unscored`.
 
 ## Workflow reminder
 

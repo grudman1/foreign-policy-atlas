@@ -180,12 +180,12 @@ the route exists but the environment isn't set up yet.
   and the `outcomes` best/base/downside block are explicitly *projections, not
   predictions*. Region label positions are hand-placed approximations for
   navigation.
-- The current `data/trump.js` is a v2 file awaiting migration to v3
-  ([`CLAUDE.md`](CLAUDE.md) → *Migration*). The app reads v2 entries
-  back-compatibly: colors still render from `state`, `baseline` is shown as the
-  inherited trajectory, a trailing `"interp"` in `points[]` flags a contested
-  call, and the absence of an `effect` field means no arrow is drawn yet. The
-  full v3 dossier surface (effect badge, outcome line, counterargument, meta
-  chips, etc.) appears as entries are re-derived.
+- `data/trump.js` is v3 now — the US home entry plus re-derived v3 country
+  entries (China is the first one to ship). The original v2 ledger lives only
+  in `data/_trump-v2-scaffold.js`, an inert reference file that is not loaded
+  by `index.html` and does not register on `window.PRESIDENTS`. Scaffold
+  entries are unsourced leads for the v3 re-derivation pipeline, never
+  finished claims to copy. See [`CLAUDE.md`](CLAUDE.md) → *Migration* for the
+  re-derivation mechanics.
 - See [`CLAUDE.md`](CLAUDE.md) for the methodology, the source rules, and the
   honesty rules every entry should follow.

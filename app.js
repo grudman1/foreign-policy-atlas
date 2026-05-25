@@ -897,7 +897,6 @@ function renderHeader(){
                             : "Foreign Policy Atlas";
   var hl=document.getElementById("hl");    if(hl) hl.textContent=P.headline||fallback;
   var bl=document.getElementById("blurb"); if(bl) bl.innerHTML=P.blurb||"";
-  var ft=document.getElementById("foot");  if(ft) ft.innerHTML=P.foot||"";
   var ao=document.getElementById("asof");  if(ao) ao.textContent=P.asOf?("As of "+P.asOf):"";
 }
 

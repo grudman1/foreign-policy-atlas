@@ -1179,6 +1179,26 @@ function openMethodology(){
   var m=document.getElementById("methodologyModal");
   if(!m) return;
   _methPrevFocus=document.activeElement;
+  // Lazy-load the iframe on first open — the methodology page is ~62 KB
+  // (its own fonts + CSS); no point fetching it at page-init for users
+  // who never click the button. Subsequent opens reuse the cached page
+  // including scroll position.
+  var iframe=document.getElementById("methodologyFrame");
+  if(iframe && !iframe.getAttribute("src")){
+    iframe.setAttribute("src","/methodology.html");
+    // Bind Escape inside the iframe too — same-origin so contentDocument
+    // is accessible. Without this, Esc only works while focus is in the
+    // parent app, not while the user is scrolling/interacting with the
+    // methodology page itself. Backdrop click and × button still close
+    // independently if this hook ever fails (cross-origin / sandbox).
+    iframe.addEventListener("load", function(){
+      try {
+        iframe.contentDocument.addEventListener("keydown", function(e){
+          if(e.key === "Escape") closeMethodology();
+        });
+      } catch(_) { /* same-origin guard tripped — non-blocking */ }
+    }, { once: true });
+  }
   m.hidden=false;
   // Focus the close button so Esc + keyboard navigation just work.
   var closeBtn=m.querySelector(".modal-close");

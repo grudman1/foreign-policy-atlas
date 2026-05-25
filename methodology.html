@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The President-Effect Engine — Foreign Policy Atlas Methodology</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F4F1;
+    --paper-2:#EDEDE8;
+    --surface:#FCFCFA;
+    --ink:#15181C;
+    --ink-soft:#3A4047;
+    --ink-faint:#6B7178;
+    --line:#D9D8D0;
+    --line-soft:#E6E5DE;
+    --teal:#0E5C55;
+    --teal-deep:#0A423D;
+    --teal-bright:#137a70;
+    --brass:#9A6B2F;
+    --brass-soft:#B68A4C;
+    --hero:#11161B;
+    --hero-2:#0C1116;
+    --on-hero:#EDEEEA;
+    --on-hero-soft:#A7AEB2;
+
+    /* state palette (illustrative, matches the map encoding) */
+    --st-core:#1f6f4a;
+    --st-aligned:#5a9d6b;
+    --st-neutral:#b9a55f;
+    --st-strained:#c8743c;
+    --st-adversarial:#b23b32;
+    --st-us:#3a4a63;
+
+    --maxw:1180px;
+    --measure:68ch;
+    --r:14px;
+    --r-sm:8px;
+    --shadow:0 1px 2px rgba(20,24,28,.04), 0 10px 30px -18px rgba(20,24,28,.25);
+    --shadow-lg:0 2px 4px rgba(20,24,28,.05), 0 30px 60px -30px rgba(20,24,28,.35);
+
+    --serif:"Newsreader", Georgia, "Times New Roman", serif;
+    --display:"Fraunces","Newsreader",Georgia,serif;
+    --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:18px;
+    line-height:1.62;
+    font-optical-sizing:auto;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  ::selection{background:rgba(14,92,85,.18);}
+
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;text-underline-offset:3px;}
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 32px;}
+
+  /* ---------- eyebrow / labels ---------- */
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--brass);
+    font-weight:500;
+  }
+  .mono{font-family:var(--mono);}
+  .tok{
+    font-family:var(--mono);
+    font-size:.82em;
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:.08em .42em;
+    color:var(--teal-deep);
+    white-space:nowrap;
+  }
+
+  /* ============ HERO ============ */
+  .hero{
+    position:relative;
+    background:radial-gradient(120% 120% at 70% -10%, var(--hero) 0%, var(--hero-2) 70%);
+    color:var(--on-hero);
+    overflow:hidden;
+    border-bottom:1px solid #000;
+  }
+  .hero .grid-tex{
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(120% 100% at 75% 0%, #000 35%, transparent 78%);
+    -webkit-mask-image:radial-gradient(120% 100% at 75% 0%, #000 35%, transparent 78%);
+  }
+  .hero .globe{
+    position:absolute; right:-120px; top:-60px; width:560px;height:560px;
+    opacity:.5; pointer-events:none;
+  }
+  .hero .globe svg{width:100%;height:100%;}
+  .hero-inner{position:relative;z-index:2;padding:78px 0 64px;}
+  .hero .kicker{color:var(--brass-soft);}
+  .hero h1{
+    font-family:var(--display);
+    font-weight:600;
+    font-size:clamp(44px,7.2vw,92px);
+    line-height:.98;
+    letter-spacing:-.02em;
+    margin:.32em 0 .18em;
+    max-width:14ch;
+  }
+  .hero h1 em{font-style:italic;color:var(--brass-soft);font-weight:500;}
+  .hero .sub{
+    font-family:var(--display);
+    font-style:italic;
+    font-weight:400;
+    font-size:clamp(20px,2.4vw,28px);
+    color:var(--on-hero);
+    opacity:.9;
+    max-width:30ch;
+    margin:0 0 30px;
+  }
+  .hero .lede{
+    border-left:2px solid var(--brass);
+    padding-left:20px;
+    max-width:54ch;
+    color:var(--on-hero-soft);
+    font-size:18px;
+  }
+  .hero .meta{
+    margin-top:42px;
+    display:flex;flex-wrap:wrap;gap:28px 48px;
+    border-top:1px solid rgba(255,255,255,.12);
+    padding-top:24px;
+    font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;color:var(--on-hero-soft);
+  }
+  .hero .meta b{color:var(--on-hero);font-weight:500;display:block;margin-bottom:3px;letter-spacing:.14em;text-transform:uppercase;font-size:11px;color:var(--brass-soft);}
+  .hero-actions{margin-top:30px;}
+  .dl-btn{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    background:var(--brass);color:#fff;border:0;border-radius:9px;padding:13px 20px;cursor:pointer;
+    box-shadow:0 8px 24px -10px rgba(0,0,0,.6);transition:background .2s ease, transform .2s ease;
+  }
+  .dl-btn:hover{background:var(--brass-soft);transform:translateY(-1px);}
+  .dl-btn:active{transform:translateY(0);}
+
+  /* ============ LAYOUT ============ */
+  .shell{display:grid;grid-template-columns:248px 1fr;gap:56px;max-width:var(--maxw);margin:0 auto;padding:0 32px;}
+  /* TOC */
+  nav.toc{
+    position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+    padding:54px 0 40px;
+  }
+  nav.toc .toc-label{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+  nav.toc li{counter-increment:toc;margin:1px 0;}
+  nav.toc a{
+    display:flex;gap:10px;align-items:baseline;
+    font-family:var(--mono);font-size:13px;color:var(--ink-soft);
+    padding:6px 10px;border-radius:7px;border-left:2px solid transparent;
+    line-height:1.3;
+  }
+  nav.toc a::before{content:counter(toc,decimal-leading-zero);color:var(--ink-faint);font-size:11px;}
+  nav.toc a:hover{background:var(--paper-2);text-decoration:none;color:var(--ink);}
+  nav.toc a.active{color:var(--teal-deep);background:rgba(14,92,85,.07);border-left-color:var(--teal);font-weight:500;}
+
+  main{padding:54px 0 80px;max-width:780px;}
+
+  /* ---------- section ---------- */
+  section{margin:0 0 76px;scroll-margin-top:28px;}
+  .sec-head{margin-bottom:26px;}
+  .sec-head .num{font-family:var(--mono);font-size:13px;color:var(--brass);letter-spacing:.2em;}
+  h2{
+    font-family:var(--display);font-weight:600;
+    font-size:clamp(28px,4vw,40px);line-height:1.04;letter-spacing:-.015em;
+    margin:.18em 0 0;color:var(--ink);
+  }
+  h3{
+    font-family:var(--display);font-weight:600;font-size:23px;letter-spacing:-.01em;
+    margin:38px 0 10px;color:var(--ink);
+  }
+  h4{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin:30px 0 10px;}
+  p{margin:0 0 18px;max-width:var(--measure);}
+  .lead{font-size:21px;line-height:1.55;color:var(--ink-soft);}
+  .lead strong{color:var(--ink);font-weight:600;}
+  strong{font-weight:600;}
+  em{font-style:italic;}
+  .small{font-size:15.5px;color:var(--ink-soft);}
+
+  hr.rule{border:0;border-top:1px solid var(--line);margin:34px 0;}
+
+  /* ---------- definition tables ---------- */
+  .deftable{width:100%;border-collapse:collapse;margin:22px 0;font-size:16px;}
+  .deftable th{
+    text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:500;padding:0 14px 10px 0;border-bottom:1px solid var(--line);
+  }
+  .deftable td{padding:13px 14px 13px 0;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  .deftable td:first-child{white-space:nowrap;width:1%;}
+  .deftable tr:last-child td{border-bottom:0;}
+  .val{font-family:var(--mono);font-size:13.5px;color:var(--teal-deep);font-weight:500;}
+
+  /* ---------- swatch chips for state ---------- */
+  .chip{display:inline-flex;align-items:center;gap:8px;}
+  .dot{width:13px;height:13px;border-radius:3px;display:inline-block;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);}
+
+  /* ---------- callout ---------- */
+  .callout{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--brass);
+    border-radius:var(--r-sm);
+    padding:22px 24px;margin:26px 0;box-shadow:var(--shadow);
+  }
+  .callout .ic-label{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);margin-bottom:8px;}
+  .callout p{margin-bottom:0;max-width:none;font-size:16.5px;color:var(--ink-soft);}
+  .callout p + p{margin-top:12px;}
+
+  .keyline{
+    background:linear-gradient(0deg,var(--surface),var(--surface));
+    border:1px solid var(--line);border-radius:var(--r-sm);
+    padding:22px 24px;margin:26px 0;
+  }
+  .keyline .ic-label{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:8px;}
+  .keyline p{margin:0;max-width:none;}
+
+  blockquote{
+    margin:30px 0;padding:0 0 0 26px;border-left:3px solid var(--teal);
+    font-family:var(--display);font-style:italic;font-size:22px;line-height:1.4;color:var(--ink);max-width:42ch;
+  }
+
+  /* ---------- two-axis explainer ---------- */
+  .axes{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:28px 0;}
+  .axes .ax{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px;box-shadow:var(--shadow);}
+  .axes .ax .tag{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);}
+  .axes .ax h3{margin:6px 0 6px;font-size:21px;}
+  .axes .ax p{font-size:15.5px;color:var(--ink-soft);margin:0;max-width:none;}
+  .axes .ax .em{color:var(--teal);font-weight:600;}
+
+  /* matrix */
+  .matrix{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:24px 0;}
+  .mcell{border:1px solid var(--line);border-radius:var(--r);padding:20px;background:var(--surface);position:relative;overflow:hidden;}
+  .mcell .corner{position:absolute;top:0;left:0;width:6px;height:100%;}
+  .mcell .head{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.05em;color:var(--ink-soft);text-transform:uppercase;}
+  .mcell .arrow{font-family:var(--mono);font-weight:600;}
+  .mcell p{font-size:15px;margin:10px 0 0;color:var(--ink-soft);max-width:none;}
+
+  /* ---------- role cards ---------- */
+  .roles{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin:26px 0;background:var(--surface);}
+  .role{padding:22px 24px;border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);}
+  .role:nth-child(2n){border-right:0;}
+  .role .rn{font-family:var(--display);font-weight:600;font-size:20px;color:var(--ink);display:flex;align-items:baseline;gap:10px;}
+  .role .gloss{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--brass);}
+  .role p{font-size:15px;color:var(--ink-soft);margin:8px 0 0;max-width:none;}
+  .role .ex{margin-top:10px;font-size:14px;color:var(--ink);}
+  .role .ex b{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;display:block;margin-bottom:2px;}
+
+  /* ---------- levers ---------- */
+  .levers{counter-reset:lev;margin:24px 0;}
+  .lever{display:flex;gap:18px;padding:18px 0;border-bottom:1px solid var(--line-soft);}
+  .lever:last-child{border-bottom:0;}
+  .lever .ln{counter-increment:lev;flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--teal);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:15px;}
+  .lever .ln::before{content:counter(lev);}
+  .lever h3{margin:0;font-size:18px;}
+  .lever p{margin:4px 0 0;font-size:15.5px;color:var(--ink-soft);max-width:none;}
+
+  /* ---------- entry card ---------- */
+  .entry{
+    border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin:28px 0;
+    box-shadow:var(--shadow-lg);background:var(--surface);
+  }
+  .entry .ehead{padding:20px 24px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,var(--surface));}
+  .entry .ecountry{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .entry .ecountry .name{font-family:var(--display);font-weight:600;font-size:24px;}
+  .entry .pill{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-radius:20px;padding:4px 11px;border:1px solid var(--line);color:var(--ink-soft);}
+  .entry .pill.eff{color:#fff;border:0;}
+  .entry .scenario{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-top:6px;}
+  .entry .ebody{padding:22px 24px;}
+  .entry .erow{display:grid;grid-template-columns:120px 1fr;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft);}
+  .entry .erow:last-child{border-bottom:0;}
+  .entry .erow .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);padding-top:2px;}
+  .entry .erow .v{font-size:15.5px;color:var(--ink-soft);}
+  .entry .erow .v b{color:var(--ink);}
+
+  /* ---------- pipeline ---------- */
+  .pipe{margin:30px 0;}
+  .stage{
+    display:grid;grid-template-columns:46px 1fr;gap:20px;position:relative;padding:0 0 30px;
+  }
+  .stage:last-child{padding-bottom:0;}
+  .stage .rail{display:flex;flex-direction:column;align-items:center;}
+  .stage .node{
+    flex:none;width:46px;height:46px;border-radius:12px;background:var(--hero);color:var(--on-hero);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:16px;
+    box-shadow:var(--shadow);z-index:2;
+  }
+  .stage .wire{width:2px;flex:1;background:linear-gradient(var(--teal),var(--line));margin-top:4px;}
+  .stage:last-child .wire{display:none;}
+  .stage .body{padding-bottom:6px;}
+  .stage .sname{font-family:var(--display);font-weight:600;font-size:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .stage .model{font-family:var(--mono);font-size:11px;letter-spacing:.04em;background:var(--teal-deep);color:#dff1ee;padding:3px 9px;border-radius:6px;}
+  .stage .model.alt{background:var(--brass);color:#fff;}
+  .stage .model.det{background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--line);}
+  .stage p{margin:8px 0 0;font-size:15.5px;color:var(--ink-soft);max-width:none;}
+
+  .loopnote{font-family:var(--mono);font-size:12px;color:var(--ink-faint);margin-top:6px;}
+
+  /* ---------- two-col lists ---------- */
+  .twolist{display:grid;grid-template-columns:1fr 1fr;gap:6px 30px;margin:18px 0;}
+  .twolist .it{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:15.5px;}
+  .twolist .it .k{color:var(--teal-deep);font-family:var(--mono);font-size:12.5px;flex:none;}
+
+  ul.clean{list-style:none;padding:0;margin:16px 0;}
+  ul.clean li{padding:10px 0 10px 26px;position:relative;border-bottom:1px solid var(--line-soft);font-size:16px;color:var(--ink-soft);max-width:var(--measure);}
+  ul.clean li:last-child{border-bottom:0;}
+  ul.clean li::before{content:"";position:absolute;left:4px;top:18px;width:7px;height:7px;border-radius:2px;background:var(--teal);}
+  ul.clean li b{color:var(--ink);}
+
+  /* ---------- footer ---------- */
+  footer{background:var(--hero);color:var(--on-hero-soft);border-top:1px solid #000;}
+  footer .wrap{padding:54px 32px 60px;}
+  footer .eyebrow{color:var(--brass-soft);}
+  footer h3{color:var(--on-hero);font-family:var(--display);font-size:24px;margin:10px 0 14px;}
+  footer p{color:var(--on-hero-soft);max-width:64ch;font-size:15.5px;}
+  footer a{color:var(--brass-soft);}
+  footer .fmeta{margin-top:28px;border-top:1px solid rgba(255,255,255,.12);padding-top:20px;font-family:var(--mono);font-size:12px;letter-spacing:.04em;display:flex;flex-wrap:wrap;gap:8px 36px;}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(14px);transition:opacity .7s ease, transform .7s ease;}
+  .reveal.in{opacity:1;transform:none;}
+
+  /* progress */
+  #prog{position:fixed;top:0;left:0;height:3px;background:var(--teal-bright);width:0;z-index:50;}
+
+  @media (max-width:980px){
+    .shell{grid-template-columns:1fr;gap:0;}
+    nav.toc{display:none;}
+    main{max-width:100%;padding:40px 0 70px;}
+    .axes,.matrix,.roles,.twolist{grid-template-columns:1fr;}
+    .role:nth-child(odd){border-right:0;}
+    body{font-size:17px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none;}
+    html{scroll-behavior:auto;}
+  }
+  @media print{
+    nav.toc,#prog,.dl-btn,.hero-actions{display:none !important;}
+    .shell{display:block;max-width:none;padding:0;}
+    main{max-width:none;padding:22px 0;}
+    *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+    .reveal{opacity:1 !important;transform:none !important;}
+    section{break-inside:avoid;margin-bottom:40px;}
+    .entry,.callout,.keyline,.role,.mcell,.stage,.lever{break-inside:avoid;}
+    h2,h3,h4,.sec-head{break-after:avoid;}
+    body{font-size:11.5pt;}
+    .hero .globe{opacity:.32;}
+    @page{margin:14mm 13mm;}
+  }
+</style>
+</head>
+<body>
+<div id="prog"></div>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="grid-tex"></div>
+  <div class="globe" aria-hidden="true">
+    <svg viewBox="0 0 200 200" fill="none" stroke="#7FB7AF" stroke-width=".5" opacity="0.9">
+      <circle cx="100" cy="100" r="92"/>
+      <ellipse cx="100" cy="100" rx="92" ry="34"/>
+      <ellipse cx="100" cy="100" rx="92" ry="64"/>
+      <ellipse cx="100" cy="100" rx="34" ry="92"/>
+      <ellipse cx="100" cy="100" rx="64" ry="92"/>
+      <line x1="8" y1="100" x2="192" y2="100"/>
+      <line x1="100" y1="8" x2="100" y2="192"/>
+    </svg>
+  </div>
+  <div class="wrap hero-inner">
+    <div class="eyebrow kicker">Foreign Policy Atlas · Methodology · Public Edition</div>
+    <h1>The President&#8209;Effect <em>Engine</em></h1>
+    <p class="sub">How the Atlas rates U.S. foreign policy — country by country, president by president.</p>
+    <p class="lede">A balanced national-interest assessment that scores <strong style="color:var(--on-hero)">cause, not warmth</strong> — sourced, adversarially reviewed by independent models, calibrated across the whole map, and openly silent when the evidence will not carry a verdict.</p>
+    <div class="hero-actions"><button class="dl-btn" onclick="window.print()" aria-label="Download this methodology as a PDF">↓&nbsp;&nbsp;Download PDF</button></div>
+    <div class="meta">
+      <div><b>Model</b>Version 3.0 · two-axis</div>
+      <div><b>Snapshot</b>May 2026</div>
+      <div><b>Surface</b>fpatlas.vercel.app</div>
+      <div><b>Engine</b>5-stage multi-model pipeline</div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <!-- ============ TOC ============ -->
+  <nav class="toc" aria-label="Table of contents">
+    <div class="toc-label">Contents</div>
+    <ol>
+      <li><a href="#orientation">What the Atlas measures</a></li>
+      <li><a href="#axes">The two axes</a></li>
+      <li><a href="#causal">The causal rule</a></li>
+      <li><a href="#triage">Triage &amp; the right to stay silent</a></li>
+      <li><a href="#levers">The five levers</a></li>
+      <li><a href="#roles">The nine roles</a></li>
+      <li><a href="#entry">Anatomy of an entry</a></li>
+      <li><a href="#engine">The production engine</a></li>
+      <li><a href="#stance">Analytic stance</a></li>
+      <li><a href="#credibility">Source &amp; honesty rules</a></li>
+      <li><a href="#beyond">Beyond the cell</a></li>
+      <li><a href="#limits">What this can't fix</a></li>
+      <li><a href="#worked">A worked example</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+    <!-- 01 -->
+    <section id="orientation" class="reveal">
+      <div class="sec-head"><span class="num">01 — ORIENTATION</span><h2>What the Atlas measures</h2></div>
+      <p class="lead">For every country, the map answers <strong>two questions at once</strong> — and keeps them strictly apart. The first is about the world as it stands. The second is about the person in the Oval Office.</p>
+      <p>The central research question is causal: <em>did this president improve or worsen America's strategic position with respect to this country, relative to the trajectory already in motion when they took office?</em> That framing does most of the work in this document. It is the difference between grading a <em>result</em> and grading a <em>decision</em> — between what happened on someone's watch and what they actually caused.</p>
+      <div class="axes">
+        <div class="ax">
+          <div class="tag">The color · "state"</div>
+          <h3>Where does the relationship stand now?</h3>
+          <p>A point-in-time snapshot of the current relationship — ally, rival, or somewhere between — <span class="em">independent of who caused it</span>.</p>
+        </div>
+        <div class="ax">
+          <div class="tag">The arrow · "effect"</div>
+          <h3>What did this president do about it?</h3>
+          <p>The president's <span class="em">net causal effect</span> on the U.S. position over the term, measured against the path they inherited.</p>
+        </div>
+      </div>
+      <p>A relationship can stand in a bad place that no recent president caused, or a good place that one of them quietly squandered. Holding the two axes apart is what lets the Atlas describe both honestly — and it is the reason a single map cell can say two independent things without the encodings fighting for the same channel.</p>
+    </section>
+
+    <!-- 02 -->
+    <section id="axes" class="reveal">
+      <div class="sec-head"><span class="num">02 — THE TWO AXES</span><h2>Color and arrow</h2></div>
+
+      <h3>State — the color</h3>
+      <p>The <strong>state</strong> is a snapshot of where a relationship stands today, regardless of how it got there. Six values cover the spectrum from treaty alliance to open hostility.</p>
+      <table class="deftable">
+        <tr><td><span class="chip"><span class="dot" style="background:var(--st-core)"></span><span class="val">core-ally</span></span></td><td>Treaty-level or institutionally deep.</td></tr>
+        <tr><td><span class="chip"><span class="dot" style="background:var(--st-aligned)"></span><span class="val">aligned</span></span></td><td>A partner, moving together on most issues.</td></tr>
+        <tr><td><span class="chip"><span class="dot" style="background:var(--st-neutral)"></span><span class="val">neutral</span></span></td><td>Transactional; no strong pull either way.</td></tr>
+        <tr><td><span class="chip"><span class="dot" style="background:var(--st-strained)"></span><span class="val">strained</span></span></td><td>Cooling, damaged, or low-engagement.</td></tr>
+        <tr><td><span class="chip"><span class="dot" style="background:var(--st-adversarial)"></span><span class="val">adversarial</span></span></td><td>Active rivalry or hostility.</td></tr>
+        <tr><td><span class="chip"><span class="dot" style="background:var(--st-us)"></span><span class="val">us</span></span></td><td>The United States itself.</td></tr>
+      </table>
+
+      <h3>Effect — the arrow</h3>
+      <p>The <strong>effect</strong> is the president's net causal effect on the U.S. strategic position over the term, judged against the inherited trajectory. The public map uses only four values — <em>no five-level scale</em>. False precision is worse than honest coarseness.</p>
+      <table class="deftable">
+        <tr><td><span class="val">↑ helped</span></td><td>Improved the U.S. position versus the inherited path.</td></tr>
+        <tr><td><span class="val">— mixed</span></td><td>Net effect is genuinely mixed, offsetting, or unclear.</td></tr>
+        <tr><td><span class="val">↓ hurt</span></td><td>Worsened the U.S. position versus the inherited path.</td></tr>
+        <tr><td><span class="val">· unscored</span></td><td>Deliberately off the scoreboard — see Triage.</td></tr>
+      </table>
+
+      <h3>Magnitude — the weight</h3>
+      <p>Magnitude is a separate field — <span class="tok">modest</span> <span class="tok">material</span> <span class="tok">major</span> — shown on hover and carried in the weight of the arrow: a <em>major</em> effect draws a double chevron, <em>material</em> a single bold one, <em>modest</em> a lighter stroke. It applies <strong>only</strong> to <span class="tok">helped</span> and <span class="tok">hurt</span>. On the map, <span class="tok">mixed</span> is a level bar and <span class="tok">unscored</span> draws no mark at all.</p>
+      <table class="deftable">
+        <tr><th>Value</th><th>Meaning</th></tr>
+        <tr><td><span class="val">modest</span></td><td>Noticeable but limited in scope.</td></tr>
+        <tr><td><span class="val">material</span></td><td>Meaningful — affects the core bilateral dynamic.</td></tr>
+        <tr><td><span class="val">major</span></td><td>A fundamental shift in the relationship.</td></tr>
+      </table>
+
+      <div class="keyline">
+        <div class="ic-label">Why the axes are independent</div>
+        <p>The two axes are independent, and the combination is the whole point. A country can be <strong>adversarial but helped</strong> — a rival a president handled well — or a <strong>core-ally but hurt</strong> — a friend whose trust, leverage, or coordination they eroded. Collapsing the two would hide exactly the cases worth seeing.</p>
+      </div>
+
+      <div class="matrix">
+        <div class="mcell"><span class="corner" style="background:var(--st-adversarial)"></span><div class="head"><span class="arrow">↑</span> adversarial · helped</div><p>A rival who stayed a rival — but whose position relative to the U.S. weakened on this president's decisions.</p></div>
+        <div class="mcell"><span class="corner" style="background:var(--st-core)"></span><div class="head"><span class="arrow">↓</span> core-ally · hurt</div><p>Still an ally on paper, but a president eroded the trust, leverage, or coordination that made the alliance valuable.</p></div>
+      </div>
+      <p class="small"><strong>Color is state; the arrow is effect.</strong> The arrows are deliberately monochrome — white with a dark outline. Hue is reserved entirely for state; the arrow carries effect through direction and shape alone.</p>
+    </section>
+
+    <!-- 03 -->
+    <section id="causal" class="reveal">
+      <div class="sec-head"><span class="num">03 — THE CAUSAL RULE</span><h2>Cause, not credit</h2></div>
+
+      <h4>One fixed counterfactual</h4>
+      <p>Every effect is measured against a single, fixed counterfactual: <strong>the continuation of the inherited trajectory</strong>, absent the president's major policy changes. That baseline is recorded in each entry's <span class="tok">inherited</span> field. The rule is deliberately strict — there is no shopping for a flattering or a damning counterfactual. The inherited path is the only baseline against which a president is graded.</p>
+
+      <h4>Outcome is not effect</h4>
+      <p>The Atlas separates two things that are easy to conflate:</p>
+      <table class="deftable">
+        <tr><th>Field</th><th>Captures</th></tr>
+        <tr><td><span class="val">outcome</span></td><td>What <em>happened</em> to the U.S. position — the world, regardless of cause.</td></tr>
+        <tr><td><span class="val">effect + points</span></td><td>What the president <em>caused</em> — the attribution, argued from sourced facts.</td></tr>
+      </table>
+
+      <div class="keyline">
+        <div class="ic-label">Credit and blame are symmetric</div>
+        <p>A good outcome a president merely inherited is not <span class="tok">helped</span> — the effect is <span class="tok">mixed</span> and the role is <span class="tok">Inheritor</span>. A bad outcome they could not have changed is not <span class="tok">hurt</span>. Unearned gains and blameless losses both resolve toward <span class="tok">mixed</span>. The same standard applies to wins and losses alike.</p>
+      </div>
+
+      <div class="callout">
+        <div class="ic-label">In practice · China, fentanyl</div>
+        <p>The U.S. overdose decline is a real, favorable outcome — but the Atlas does not bank it as a presidential win. The reporting traces the supply shift to enforcement that began in 2023, <em>before</em> the term, so the improvement is attributed to inherited momentum, not 2025 tariffs. The same logic runs in reverse on Taiwan: record cross-strait military pressure tracks a tempo that predates the term, so it is largely not counted against the president either. <strong>Outcomes move; only the share a president caused moves the arrow.</strong></p>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section id="triage" class="reveal">
+      <div class="sec-head"><span class="num">04 — TRIAGE</span><h2>The right to stay silent</h2></div>
+      <p>Not every country needs a scored arrow. Rather than manufacture a judgment, an entry can be marked <span class="tok">unscored</span> with an explicit reason. This is a feature, not an evasion — <strong>a blank is more credible than a fabricated verdict.</strong></p>
+      <table class="deftable">
+        <tr><th>unscoredReason</th><th>Use when</th></tr>
+        <tr><td><span class="val">noMaterialEffect</span></td><td>Nothing of strategic consequence happened.</td></tr>
+        <tr><td><span class="val">noPresidentialEffect</span></td><td>Things changed — but not because of the president.</td></tr>
+        <tr><td><span class="val">systemicOnly</span></td><td>Movement was driven by global or structural forces.</td></tr>
+        <tr><td><span class="val">insufficientEvidence</span></td><td>No defensible call can be sourced.</td></tr>
+      </table>
+      <div class="keyline">
+        <div class="ic-label">The triage-fairness rule</div>
+        <p>If you score the comparable wins, you must score the comparable losses — and vice versa. The unscored pile is a selection-bias surface, and it gets audited. Crucially, <strong>neglect can itself be the critique</strong>: a president who ignored a country where engagement mattered may be <span class="tok">hurt</span> with role <span class="tok">Neglect</span>, not <span class="tok">unscored</span>. There is no "not a priority" escape hatch.</p>
+      </div>
+    </section>
+
+    <!-- 05 -->
+    <section id="levers" class="reveal">
+      <div class="sec-head"><span class="num">05 — SCORING TOOLS</span><h2>The five levers</h2></div>
+      <p>There is no formula and no weighted sum. Two instruments structure the judgment: a checklist of five <strong>levers</strong> to test where a president actually moved the position, and a vocabulary of <strong>roles</strong> to name how they related to the outcome.</p>
+      <div class="levers">
+        <div class="lever"><div class="ln"></div><div><h3>Security &amp; threat</h3><p>Deterrence, force posture, war and peace. <span class="mono small">key:&nbsp;security</span></p></div></div>
+        <div class="lever"><div class="ln"></div><div><h3>Leverage &amp; dependence</h3><p>Who needs whom; coercive leverage gained or lost. <span class="mono small">key:&nbsp;leverage</span></p></div></div>
+        <div class="lever"><div class="ln"></div><div><h3>Rival-denial</h3><p>Did this deny China, Russia, or Iran a foothold — or hand them one? <span class="mono small">key:&nbsp;rivalDenial</span></p></div></div>
+        <div class="lever"><div class="ln"></div><div><h3>Coalition &amp; institutional</h3><p>Alliances, blocs, and institutions strengthened or eroded. <span class="mono small">key:&nbsp;coalition</span></p></div></div>
+        <div class="lever"><div class="ln"></div><div><h3>Economic &amp; tech</h3><p>Trade, capital, critical minerals, technology standards. <span class="mono small">key:&nbsp;economicTech</span></p></div></div>
+      </div>
+      <div class="callout">
+        <div class="ic-label">In practice · a sign-disputed lever</div>
+        <p>Levers don't always point one way. Pressuring NATO allies to spend more is a single <em>coalition</em> move with two defensible signs: it erodes allied trust and predictability (a coalition loss) <em>and</em> it can force long-deferred commitments that leave the alliance stronger (a coalition gain). When a lever's sign is genuinely contested like this, the entry records <strong>both readings</strong> rather than silently picking one — and the cell is flagged <span class="tok">contested</span>.</p>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section id="roles" class="reveal">
+      <div class="sec-head"><span class="num">06 — THE VOCABULARY</span><h2>The nine roles</h2></div>
+      <p>The <span class="tok">role</span> field names the president's <em>relationship to the result</em> — the difference between building an outcome and simply receiving one. Effect says <em>which direction</em>; role says <em>how they got there</em>. There are exactly nine, and the engine may never invent a tenth.</p>
+
+      <div class="roles">
+        <div class="role">
+          <div class="rn">Architect <span class="gloss">built it</span></div>
+          <p>Constructed a genuinely new outcome — structure that did not exist on the inherited path.</p>
+          <div class="ex"><b>Example · Saudi Arabia — helped, material</b>A Major Non-NATO Ally designation, a signed Strategic Defense Agreement, and a state-partnership accession are scored as newly built architecture, not the continuation of a prior trend.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Accelerator <span class="gloss">sped a trend</span></div>
+          <p>Pushed an already-moving trajectory faster or harder, without originating it.</p>
+          <div class="ex"><b>Example · China — mixed</b>Fast, high tariffs accelerated an already-steepening decoupling that began under the prior administration; the engine credits the acceleration, not the invention of the trend.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Closer <span class="gloss">finished a deal</span></div>
+          <p>Brought an inherited initiative across the line — signed, ratified, or operationalized what a predecessor had negotiated.</p>
+          <div class="ex"><b>Illustrative</b>A president who signs and brings into force an agreement substantially negotiated before the term.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Stabilizer <span class="gloss">held the line</span></div>
+          <p>Maintained an inherited position through pressure without new construction — steadiness as the contribution.</p>
+          <div class="ex"><b>Illustrative</b>A relationship kept on its existing footing through a destabilizing period, with no new initiative claimed.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Active Stabilizer <span class="gloss">worked to hold it</span></div>
+          <p>Spent real effort and capital to keep a relationship from slipping — stabilization as a deliberate act, not mere inertia.</p>
+          <div class="ex"><b>Example · Poland — helped, modest</b>Sustained force presence, new financing, and head-of-state engagement actively held a frontline relationship in place against countervailing pressure.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Inheritor <span class="gloss">received it</span></div>
+          <p>Took the benefit (or cost) of a result they did not cause. The default landing place for unearned gains.</p>
+          <div class="ex"><b>Example · Egypt — mixed</b>Gaza co-mediation, the financing anchor, and recurring military exercises were all inherited; continuation is not a presidential effect.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Bystander <span class="gloss">uninvolved</span></div>
+          <p>Present but not a mover — the relationship's path ran independent of anything the president did.</p>
+          <div class="ex"><b>Illustrative</b>A country whose trajectory simply did not respond to U.S. presidential action during the term.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Neglect <span class="gloss">harmful inaction</span></div>
+          <p>Inaction that itself did damage — the cost of <em>not</em> engaging where engagement mattered. Pairs with <span class="tok">hurt</span>, never with silence.</p>
+          <div class="ex"><b>Note</b>This is why "not a priority" is not an escape hatch: consequential neglect is scored as harm, not left blank.</div>
+        </div>
+        <div class="role">
+          <div class="rn">Spoiler <span class="gloss">broke something</span></div>
+          <p>Actively damaged a working relationship or arrangement.</p>
+          <div class="ex"><b>Example · Belgium — hurt, modest</b>New tariff barriers on a treaty ally's leading export sector are scored as damage to the economic relationship, against an otherwise stable alliance.</div>
+        </div>
+      </div>
+      <p class="small">Examples drawn from the live Trump 2nd-term dataset are illustrative of how the role is <em>applied</em>; see the colophon on the dataset's scenario framing. Roles labelled "Illustrative" describe the definition generically.</p>
+    </section>
+
+    <!-- 07 -->
+    <section id="entry" class="reveal">
+      <div class="sec-head"><span class="num">07 — THE RECORD</span><h2>Anatomy of an entry</h2></div>
+      <p>Each country under each president is one structured record. <strong>Required</strong> fields are always present; <strong>conditional</strong> fields appear only where they genuinely apply.</p>
+      <table class="deftable">
+        <tr><th>Required field</th><th>Holds</th></tr>
+        <tr><td><span class="val">state</span></td><td>The color — where the relationship stands now.</td></tr>
+        <tr><td><span class="val">effect</span></td><td>The arrow — the president's net causal effect.</td></tr>
+        <tr><td><span class="val">magnitude</span></td><td>Weight of a scored effect; <span class="tok">null</span> unless helped/hurt.</td></tr>
+        <tr><td><span class="val">region</span></td><td>The geographic grouping the cell belongs to.</td></tr>
+        <tr><td><span class="val">outcome</span></td><td>One sentence: what happened to the U.S. position.</td></tr>
+        <tr><td><span class="val">inherited</span></td><td>The inherited trajectory — the fixed counterfactual.</td></tr>
+        <tr><td><span class="val">points</span></td><td>The causal argument; one sourced fact or claim each.</td></tr>
+        <tr><td><span class="val">role</span></td><td>How the president related to the outcome.</td></tr>
+        <tr><td><span class="val">confidence</span></td><td>Confidence in the attribution — high / medium / low.</td></tr>
+        <tr><td><span class="val">evidence</span></td><td>Source sufficiency; <span class="tok">insufficient</span> forces <span class="tok">unscored</span>.</td></tr>
+        <tr><td><span class="val">contested</span></td><td>Flags that serious analysts could land differently.</td></tr>
+        <tr><td><span class="val">counterargument</span></td><td>The strongest case <em>against</em> this scoring.</td></tr>
+        <tr><td><span class="val">sources</span></td><td>Citations — claims are fetched, not recalled.</td></tr>
+      </table>
+      <h4>Conditional fields</h4>
+      <div class="twolist">
+        <div class="it"><span class="k">unscoredReason</span> why an entry abstains</div>
+        <div class="it"><span class="k">levers</span> per-lever readings</div>
+        <div class="it"><span class="k">decisionVsExecution</span> who moved it, and how</div>
+        <div class="it"><span class="k">durability</span> will the effect last</div>
+        <div class="it"><span class="k">opportunityCost</span> the road not taken</div>
+        <div class="it"><span class="k">escalationRisk</span> tail risk introduced</div>
+        <div class="it"><span class="k">crossTheaterTradeoff</span> a gain that cost elsewhere</div>
+        <div class="it"><span class="k">grandStrategyDispute</span> sign depends on doctrine</div>
+        <div class="it"><span class="k">longHorizon</span> effects that mature slowly</div>
+        <div class="it"><span class="k">omissionNote</span> what the pack could not establish</div>
+        <div class="it"><span class="k">linkedPolicies</span> sibling country cells (names only)</div>
+        <div class="it"><span class="k">userDirected</span> an editor-directed override</div>
+      </div>
+
+      <div class="entry">
+        <div class="ehead">
+          <div class="ecountry">
+            <span class="name">China</span>
+            <span class="pill" style="border-color:var(--st-adversarial);color:var(--st-adversarial)">adversarial</span>
+            <span class="pill eff" style="background:var(--ink-faint)">— mixed</span>
+            <span class="pill">contested</span>
+          </div>
+          <div class="scenario">Trump · 2nd term · live entry</div>
+        </div>
+        <div class="ebody">
+          <div class="erow"><div class="k">role</div><div class="v"><b>Accelerator</b> · confidence <b>medium</b> · evidence <b>adequate</b> · magnitude <b>null</b> (mixed)</div></div>
+          <div class="erow"><div class="k">inherited</div><div class="v">An "Invest, Align, Compete" framework judged positive overall; average tariffs already ~21% with steepening export and outbound-investment controls; fentanyl cooperation secured in late 2023; structural Chinese weakness — property crisis, deflation, overcapacity.</div></div>
+          <div class="erow"><div class="k">outcome</div><div class="v">An escalate-then-truce cycle that left the U.S. position roughly where it stood structurally inside an unresolved rivalry; two summits produced a shallow, time-bound truce.</div></div>
+          <div class="erow"><div class="k">points</div><div class="v">Fast, high tariffs pushed the average China tariff ~21%→~50% and cut real imports ~28% — reduced dependence by one reading, broad disruption by another · those same tariffs strained the anti-China coalition in the Indo-Pacific · the tariff regime's legal basis was struck and rebuilt on different authority.</div></div>
+          <div class="erow"><div class="k">counterargument</div><div class="v">The strongest case is that this is <b>hurt</b>, not mixed: coalition strain, exposed rare-earth dependence, and the regime's legal invalidation are the cleanest attributions, while import reduction came via broad disruption and the truces are reversible.</div></div>
+        </div>
+      </div>
+      <p class="small">Every scored entry carries a real counterargument and an explicit confidence and evidence rating. A cell with no downside is treated as a signal that it was mis-scored.</p>
+    </section>
+
+    <!-- 08 -->
+    <section id="engine" class="reveal">
+      <div class="sec-head"><span class="num">08 — THE PRODUCTION ENGINE</span><h2>How an entry is made</h2></div>
+      <p class="lead">No entry is written in one pass. Each country moves through a multi-stage pipeline in which a single artifact is progressively hardened — <strong>source pack → draft → critique → reconciliation → calibration</strong> — and the stages are split across separate model contexts on purpose, so that no single author both forms a judgment and signs off on it.</p>
+
+      <div class="keyline">
+        <div class="ic-label">Three non-negotiables</div>
+        <p>The Analyst gets a clean context — the pack only, no priors and no research commentary. The Red-team is a <strong>genuinely different model family</strong>, not another prompt to the same one — the engine refuses to run if it is pointed at a Claude or a lightweight model. And every claim carries exactly one source; an abstention beats a guess.</p>
+      </div>
+
+      <div class="pipe">
+        <div class="stage">
+          <div class="rail"><div class="node">R</div><div class="wire"></div></div>
+          <div class="body">
+            <div class="sname">Researcher <span class="model">Claude Opus 4.7</span> <span class="model alt">Claude Sonnet 4.6 ×8</span></div>
+            <p>A lead researcher coordinates eight bounded sub-agents — one for the inherited baseline and one for each of seven policy angles (diplomacy, security, economic statecraft, technology &amp; export controls, human rights, regional dynamics, and early-vs-late time cuts). Each runs a fixed loop on <span class="tok">Sonnet&nbsp;4.6</span>: propose targeted primary-source searches, retrieve via a primary-source-first engine, write a sourced memo, then take exactly one reflection pass to close the single most important gap. The lead model, <span class="tok">Opus&nbsp;4.7</span>, synthesizes the memos into one dated evidence pack — baseline, what happened, attribution signals, contested points, and an explicit gaps section. <strong>It renders no score.</strong> It gathers and cites facts, and builds fresh rather than confirming prior framing.</p>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="rail"><div class="node">A</div><div class="wire"></div></div>
+          <div class="body">
+            <div class="sname">Analyst <span class="model">Claude Opus 4.7</span></div>
+            <p>Working <strong>only</strong> from the pack — no outside knowledge — the Analyst produces the draft entry: outcome separated from effect, one source per bullet, the strongest honest counterargument against its own call, and <span class="tok">unscored</span> preferred to a guess. Its output passes through a <strong>deterministic validation gate</strong> that enforces the schema mechanically — valid enums, magnitude present only for helped/hurt, one bracketed source per point. A failing draft is returned to the Analyst with the specific violations, up to three times.</p>
+            <div class="loopnote">↻ bounded self-correction loop · Analyst ⇄ validation gate · max 3 attempts</div>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="rail"><div class="node">×</div><div class="wire"></div></div>
+          <div class="body">
+            <div class="sname">Red-team <span class="model alt">OpenAI GPT-5.4</span></div>
+            <p>An adversarial reviewer on a <strong>different model family</strong> attacks the draft — the sign, the counterfactual, any unsourced claim, double-counting across levers, and triage-fairness — and ends by naming the single strongest argument the Analyst must answer. Decorrelation is the point: a critic trained by a different lab is the cheapest correction for a model's own training-era blind spots. The engine hard-refuses to run this stage on a Claude or a downgraded model.</p>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="rail"><div class="node">E</div><div class="wire"></div></div>
+          <div class="body">
+            <div class="sname">Editor <span class="model">Claude Opus 4.7</span></div>
+            <p>The Editor reconciles draft and critique against the pack. For each objection, the draft either survives because the pack defends it, or the call moves toward the more conservative reading — and a genuinely unresolved dispute becomes <span class="tok">contested:&nbsp;true</span>, with the disagreement preserved in the counterargument. A standing rule guards against over-correction: a flagged-but-true claim is re-sourced, never silently deleted. Where the critique exposes a gap a fresh adversarial pass should test, the entry loops back to the Red-team.</p>
+            <div class="loopnote">↻ bounded editor ⇄ red-team loop · later rounds attack the reconciled entry · max 3 rounds</div>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="rail"><div class="node">⟂</div><div class="wire"></div></div>
+          <div class="body">
+            <div class="sname">Adjudication <span class="model">Claude Sonnet 4.6</span></div>
+            <p>When the Analyst and Red-team land on different effect signs, the disagreement is resolved by a dedicated adjudication pass that applies the counterfactual test directly — reading the sourced points as primary evidence and deciding whether the relationship is materially better, worse, or genuinely ambiguous versus the inherited baseline. Its rationale is stored with the entry, and if it overrides the prior reading it must supply a fresh counterargument against its own call.</p>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="rail"><div class="node">C</div></div>
+          <div class="body">
+            <div class="sname">Calibrator <span class="model">Claude Opus 4.7</span></div>
+            <p>Across the finished set, a calibration pass checks cross-country consistency — is <span class="tok">magnitude</span> used alike, are comparable situations scored alike, is the <span class="tok">unscored</span> pile balanced rather than quietly hiding one direction of result? It reports flags and suggested revisions for review; it never silently rewrites a verdict. This is the layer that keeps a country-by-country method honest <em>as a whole map</em>, not just one cell at a time.</p>
+          </div>
+        </div>
+      </div>
+      <p class="small">Every stage writes a durable audit artifact — pack, draft, critique, reconciliation, adjudication rationale, final — so any verdict can be traced back through the exact reasoning that produced it.</p>
+    </section>
+
+    <!-- 09 -->
+    <section id="stance" class="reveal">
+      <div class="sec-head"><span class="num">09 — ANALYTIC STANCE</span><h2>A balanced national interest</h2></div>
+      <p>The Atlas aims for a balanced national-interest assessment and refuses to adopt a single school of grand strategy as its house view.</p>
+      <ul class="clean">
+        <li>It <b>does not assume the goal is always a closer or warmer relationship.</b> Sometimes distance, pressure, or restraint serves U.S. interests.</li>
+        <li>It <b>does not treat alliances as automatically good or automatically a "subsidy."</b> The liberal-order case (alliances as strategic assets) and the realist/restraint case (interests over values; avoid overextension) are both legitimate lenses.</li>
+        <li>Where the sign of an effect <b>depends on which school you hold</b> — primacy, liberal-internationalism, or restraint — the entry says so in <span class="tok">grandStrategyDispute</span> rather than quietly picking one.</li>
+      </ul>
+      <blockquote>The sign of a policy's effect sometimes depends on the strategy you bring to it. When it does, we disclose the dispute — we don't resolve it by fiat.</blockquote>
+      <div class="callout">
+        <div class="ic-label">In practice · a grand-strategy dispute</div>
+        <p>Take a withdrawal from a peripheral commitment. A primacy reading scores it <span class="tok">↓ hurt</span> — ground ceded to a rival. A restraint reading scores the same move <span class="tok">↑ helped</span> — overextension avoided, power conserved. Neither is "wrong"; the disagreement is about ends, not facts. The Atlas surfaces that in <span class="tok">grandStrategyDispute</span> rather than laundering one school's preference into an objective-looking arrow.</p>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section id="credibility" class="reveal">
+      <div class="sec-head"><span class="num">10 — CREDIBILITY</span><h2>Source &amp; honesty rules</h2></div>
+      <p>These are the rules the whole project rests on. The characteristic failure of a language-model author is not shallowness — it is <strong>fluent confabulation</strong>: a well-written, plausible, entirely unsourced claim. Everything here is built to catch that.</p>
+
+      <h4>Source rules</h4>
+      <table class="deftable">
+        <tr><td><b>Claims are fetched, not recalled</b></td><td>Every points bullet traces to reporting captured in <span class="tok">sources</span>. Concrete, datable facts over vibes.</td></tr>
+        <tr><td><b>Be honest about sufficiency</b></td><td>The <span class="tok">evidence</span> field is set truthfully. If sourcing is insufficient, the entry is unscored.</td></tr>
+        <tr><td><b>Prefer unscored to a guess</b></td><td>A blank is more credible than a fabricated judgment.</td></tr>
+        <tr><td><b>Red-team the cells</b></td><td>Entries get a second, adversarial read from a different model family than wrote them.</td></tr>
+      </table>
+
+      <h4>Honesty rules</h4>
+      <table class="deftable">
+        <tr><td><b>Always show the downside</b></td><td>Every scored entry carries a real counterargument. None usually means it is mis-scored.</td></tr>
+        <tr><td><b>Mark contested calls</b></td><td><span class="tok">contested: true</span> wherever a placement rests on judgment, or where serious analysts would differ.</td></tr>
+        <tr><td><b>Don't dress judgment as fact</b></td><td>A disputed placement must not imply certainty the evidence won't support.</td></tr>
+        <tr><td><b>No partisan framing</b></td><td>Describe what happened and its effect on U.S. interests — no loaded adjectives, no cheerleading.</td></tr>
+      </table>
+    </section>
+
+    <!-- 11 -->
+    <section id="beyond" class="reveal">
+      <div class="sec-head"><span class="num">11 — BEYOND THE CELL</span><h2>Regions, projections, systems</h2></div>
+      <p>A country arrow is the core unit, but three layers sit around it — and one rule governs how they relate.</p>
+      <table class="deftable">
+        <tr><th>Layer</th><th>What it holds</th></tr>
+        <tr><td><span class="val">Regions</span></td><td>A narrative layer per region — its tilt, dynamics, flagship projects, the U.S. goal, and the stakes stated as both the upside and the damage case.</td></tr>
+        <tr><td><span class="val">Projections</span></td><td>A best / base / downside spread for a relationship's future — explicitly projections, not predictions. The spread is the point; a single forecast would overclaim.</td></tr>
+        <tr><td><span class="val">Global systems</span></td><td>A reserved panel for effects that don't live in any one country — alliance architecture, financial power, the trade order, tech standards, nonproliferation, maritime, energy and minerals.</td></tr>
+      </table>
+      <div class="callout">
+        <div class="ic-label">In practice · one policy, many cells</div>
+        <p>Some effects don't live in a single country. A pact like AUKUS helps Australia (deeper capability and integration), hurts France (the contract rupture it triggered), and shifts the Indo-Pacific balance against China — one decision, three cells with different signs. The Atlas links the affected country cells with <span class="tok">linkedPolicies</span> and a <span class="tok">crossTheaterTradeoff</span> note so a single trade-off isn't mistaken for unrelated country events.</p>
+      </div>
+      <div class="keyline">
+        <div class="ic-label">The map is not a scoreboard</div>
+        <p>Bilateral cells are not independent and they do not sum to a grade. One policy can produce several country effects and a systemic one; counting greens against reds would double-count trade-offs and reward whoever drew the most cells. The systems layer and the cross-policy links exist precisely so a reader doesn't reduce a strategy to arithmetic.</p>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section id="limits" class="reveal">
+      <div class="sec-head"><span class="num">12 — LIMITATIONS</span><h2>What this can't fix</h2></div>
+      <p>The method reduces error; it does not abolish it. Four limitations are disclosed rather than pretended away — because a map that names its own blind spots is more trustworthy than one that claims to have none.</p>
+      <table class="deftable">
+        <tr><th>Limitation</th><th>Why it persists</th></tr>
+        <tr><td><b>Omission bias</b></td><td>Things done are easier to see than things neglected. The fixed counterfactual helps but does not eliminate this.</td></tr>
+        <tr><td><b>Triage-selection bias</b></td><td>What we choose to score, and what we leave blank, is itself a judgment. The triage-fairness rule is a guardrail, not a guarantee.</td></tr>
+        <tr><td><b>Grand-strategy tilt</b></td><td>Some effects only have a clear sign once you assume a school of strategy. Disclosure surfaces this; it cannot make it neutral.</td></tr>
+        <tr><td><b>Projections, not predictions</b></td><td>The best / base / downside lines are deliberate spreads of plausibility. They will be wrong in detail; the range is the honest part.</td></tr>
+      </table>
+    </section>
+
+    <!-- 13 -->
+    <section id="worked" class="reveal">
+      <div class="sec-head"><span class="num">13 — END TO END</span><h2>A worked example: China</h2></div>
+      <p>To see the whole engine in one pass, follow a single cell from empty to final.</p>
+      <ul class="clean">
+        <li><b>Researcher.</b> Eight sub-agents assemble a dated, sourced pack: the inherited "compete" framework and ~21% baseline tariffs; the escalate-then-truce cycle; two summits and a time-bound truce; the rare-earth dependence; the legal challenge to the tariff authority. No verdict is rendered — only facts and an explicit list of what could not be established.</li>
+        <li><b>Analyst.</b> Working from the pack alone, it separates the <em>outcome</em> (a rivalry left roughly where it stood) from the <em>effect</em> (what the tariffs and summits actually caused), and drafts a <span class="tok">mixed</span> call with role <span class="tok">Accelerator</span> — the trend was sped, not invented.</li>
+        <li><b>Red-team (a different lab's model).</b> Attacks the sign: the cleanest attributions — coalition strain, exposed dependence, the legal invalidation — point toward <span class="tok">hurt</span>, while the apparent wins are contaminated or reversible.</li>
+        <li><b>Editor.</b> Reconciles against the pack. The downside survives as the dominant counterargument, but the import-reduction reading is real enough that the net stays genuinely offsetting; the call holds at <span class="tok">mixed</span> and the cell is flagged <span class="tok">contested: true</span>.</li>
+        <li><b>Adjudication &amp; Calibration.</b> The counterfactual test confirms no decisive net change in trajectory; the calibration pass checks that comparable rivalries are held to the same bar. <span class="tok">magnitude</span> stays <span class="tok">null</span> — correct for a mixed call.</li>
+      </ul>
+      <p>The result is the cell shown in Section 07: <strong>adversarial · mixed · Accelerator · contested</strong>, with a sourced causal argument, an explicit downside, and a recorded confidence — every step of which can be audited back to the pack.</p>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ FOOTER / COLOPHON ============ -->
+<footer>
+  <div class="wrap">
+    <div class="eyebrow">Colophon</div>
+    <h3>A living contract</h3>
+    <p>The Foreign Policy Atlas is an interactive map rating U.S. foreign policy president by president. This document describes <strong style="color:var(--on-hero)">Version 3.0</strong> of its methodology — the two-axis President-Effect model — as of May 2026. Color encodes the current state of a relationship; the arrow encodes one president's causal effect on the U.S. position, measured against the trajectory they inherited. Where the evidence cannot support a verdict, the Atlas leaves the arrow off and says why. The model is versioned alongside the data and revised as the assessment matures.</p>
+    <p style="margin-top:14px;">The Trump 2nd-term dataset is an analytic projected-timeline scenario: entries are sourced to that scenario, and outcome lines are projections, not predictions. The methodology — the axes, the causal rule, the levers and roles, the multi-model engine, and the honesty rules — applies identically to any president and any timeline.</p>
+    <div class="fmeta">
+      <span>Foreign Policy Atlas</span>
+      <span>Methodology v3.0</span>
+      <span>Snapshot · May 2026</span>
+      <span>fpatlas.vercel.app</span>
+      <span>Sourced · red-teamed · openly uncertain</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // progress bar
+  var prog = document.getElementById('prog');
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    prog.style.width = (max>0 ? (h.scrollTop/max*100) : 0) + '%';
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  // reveal on scroll
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:.12, rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  // TOC scroll-spy
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var secs = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  var spy = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(a){ a.classList.remove('active'); });
+        if(map[e.target.id]) map[e.target.id].classList.add('active');
+      }
+    });
+  }, {rootMargin:'-20% 0px -70% 0px', threshold:0});
+  secs.forEach(function(s){ spy.observe(s); });
+</script>
+</body>
+</html>

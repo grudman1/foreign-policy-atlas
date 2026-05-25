@@ -279,7 +279,7 @@ function validateEntry(key, e, ctx) {
       const direct  = ctx.dossierKeys.has(lp);
       const aliased = ctx.alias[lp] && ctx.dossierKeys.has(ctx.alias[lp]);
       if (!direct && !aliased) {
-        errors.push(`linkedPolicies[${i}] "${lp}" doesn't resolve to a dossier key in this president`);
+        warns.push(`linkedPolicies[${i}] "${lp}" doesn't resolve to a dossier key yet (forward reference — ok)`);
       }
     });
   }

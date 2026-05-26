@@ -661,6 +661,121 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   display: block;
   background: var(--bg);
 }
+
+/* ---- Evidence-pack modal -----------------------------------------------
+   Sibling of #methodologyModal. Wider than the default .modal-panel so the
+   structured pack content (timeline list, 7 collapsible memos, sources)
+   has room to breathe; capped a bit narrower than the methodology iframe
+   variant since it renders DOM, not a full page. All colors use CSS vars
+   so dark-mode is automatic; animations honor prefers-reduced-motion via
+   the blanket override below. */
+.modal-panel--pack{
+  width: min(880px, 95vw);
+  max-height: 92vh;
+  max-width: none;
+}
+.pack-body{ font-size:13.4px; color:var(--ink); line-height:1.6; padding-top:4px; }
+.pack-body .pack-head{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px;
+  padding-bottom:12px; margin-bottom:14px;
+  border-bottom:1px solid var(--line);
+}
+.pack-body .pack-head h2{
+  font-family:var(--font-display); font-size:22px; font-weight:600;
+  letter-spacing:-0.01em; margin:0; color:var(--ink);
+}
+.pack-body .pack-kind{
+  font-size:11.5px; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--ink3); font-weight:600;
+}
+.pack-body .pack-meta{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:11px; color:var(--ink3); line-height:1.45;
+  flex-basis:100%; margin-top:4px;
+}
+.pack-body .pack-meta b{ color:var(--ink2); font-weight:600; }
+.pack-body .pack-sech{
+  font-size:11.5px; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--ink3); font-weight:600; margin:18px 0 8px;
+}
+.pack-body .pack-block{
+  margin:0 0 14px; padding:11px 13px;
+  background:var(--chip); border-radius:10px;
+  font-size:13px; line-height:1.6; color:var(--ink);
+}
+.pack-body .pack-block .prose-p:last-child{ margin-bottom:0; }
+
+/* Timeline: a clean, readable dated list. The visual timeline chart ships
+   in Project 2; here the data is just made viewable, sorted by author. */
+.pack-body .pack-timeline{ list-style:none; padding:0; margin:0; }
+.pack-body .pack-timeline > li{
+  display:flex; gap:12px; align-items:flex-start;
+  padding:10px 0; border-top:1px solid var(--line2);
+}
+.pack-body .pack-timeline > li:first-child{ border-top:0; padding-top:4px; }
+.pack-body .pt-date{
+  flex:none; width:84px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:11.5px; color:var(--ink3); padding-top:2px;
+}
+.pack-body .pt-sign{
+  flex:none; width:8px; align-self:stretch;
+  border-radius:3px; margin-top:3px; margin-bottom:3px;
+}
+.pack-body .pt-sign.sign-weakened    { background:var(--bad); }
+.pack-body .pt-sign.sign-strengthened{ background:var(--good); }
+.pack-body .pt-sign.sign-mixed       { background:var(--ink3); opacity:.55; }
+.pack-body .pt-text{ flex:1; min-width:0; }
+.pack-body .pt-label{
+  font-weight:600; color:var(--ink); font-size:13.4px; line-height:1.4;
+}
+.pack-body .pt-detail{
+  font-size:12.8px; color:var(--ink2); line-height:1.55; margin-top:3px;
+}
+.pack-body .pt-src{
+  font-size:11.5px; color:var(--ink3); margin-top:4px;
+}
+.pack-body .pt-src a{ color:var(--accent); text-decoration:none; }
+.pack-body .pt-src a:hover{ text-decoration:underline; }
+
+/* Lists inside the pack (attribution signals, contested points, gaps). */
+.pack-body .pack-list{ list-style:none; padding:0; margin:0; }
+.pack-body .pack-list > li{
+  position:relative; padding:8px 0 8px 16px;
+  font-size:13px; line-height:1.55; color:var(--ink2);
+  border-top:1px solid var(--line2);
+}
+.pack-body .pack-list > li:first-child{ border-top:0; }
+.pack-body .pack-list > li:before{
+  content:""; position:absolute; left:3px; top:15px;
+  width:5px; height:5px; border-radius:50%;
+  background:var(--ink3); opacity:.55;
+}
+.pack-body .pack-list .pl-src{
+  display:block; margin-top:3px;
+  font-size:11.5px; color:var(--ink3);
+}
+.pack-body .pack-list .pl-src a{ color:var(--accent); text-decoration:none; }
+.pack-body .pack-list .pl-src a:hover{ text-decoration:underline; }
+
+/* Memo sub-sources inside each collapsible memo. Inherits the existing
+   .sources styling — the dsec body wraps it. */
+.pack-body .pack-memo-sources{ margin:8px 0 0; padding:0; list-style:none;
+  font-size:12.2px; line-height:1.5; }
+.pack-body .pack-memo-sources li{ padding:2px 0; color:var(--ink3); }
+.pack-body .pack-memo-sources a{ color:var(--accent); text-decoration:none; }
+.pack-body .pack-memo-sources a:hover{ text-decoration:underline; }
+
+/* Source list at the bottom — reuse .sources via the renderer; here just
+   ensure it lives flush inside the pack body. */
+.pack-body .sources{ margin-top:4px; }
+
+/* Mobile: tighten timeline date column so the row still fits. */
+@media (max-width:720px){
+  .pack-body .pt-date{ width:70px; font-size:11px; }
+  .modal-panel--pack{ max-height:88vh; }
+}
+
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
@@ -748,6 +863,133 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 /* ---- Hide the page-level scrollbars on mobile WebKit when the sheet animates ---- */
 @media (max-width:720px){
   body{overscroll-behavior:none}
+}
+
+/* =====================================================================
+   Dossier visualization (.dsv-*) — additive presentation layer.
+   Each section is rendered by its own builder in app.js and returns ""
+   when its inputs are absent, so v2 entries, unscored entries, the US
+   home cell, and entries without a pack all render gracefully.
+   All colors use CSS variables (dark-mode automatic). No animations.
+   ===================================================================== */
+.dsv-section{ margin:20px 0 0; }
+.dsv-eyebrow{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ink3); font-weight:600; margin:0 0 8px;
+}
+
+/* -- B. The verdict ---------------------------------------------------- */
+.dsv-verdict{ margin:14px 0 18px; }
+.dsv-verdict-h{
+  font-family:var(--font-display);
+  font-size:25px; line-height:1.22; font-weight:600;
+  letter-spacing:-0.012em; color:var(--ink);
+  margin:6px 0 6px;
+}
+.dsv-verdict-h .dsv-verb-helped{ color:var(--good); }
+.dsv-verdict-h .dsv-verb-hurt  { color:var(--bad); }
+.dsv-verdict-clause{
+  display:block; font-family:var(--font-body);
+  font-size:11.5px; font-weight:600; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--ink3); margin-top:8px;
+}
+.dsv-verdict-outcome{
+  margin:10px 0 0; font-size:13.6px; line-height:1.6; color:var(--ink2);
+}
+
+/* -- C. Trajectory chart ----------------------------------------------- */
+.dsv-traj{
+  background:var(--chip);
+  border-radius:12px;
+  padding:12px 14px 10px;
+}
+.dsv-traj svg{ width:100%; height:auto; display:block; }
+.dsv-traj-axis,
+.dsv-traj-tick{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                font-size:10px; fill:var(--ink3); }
+.dsv-traj-mid  { stroke:var(--ink3); stroke-width:0.6; opacity:.35; stroke-dasharray:2 3; }
+.dsv-traj-inh  { fill:none; stroke:var(--ink3); stroke-width:1.6; stroke-dasharray:5 5; }
+.dsv-traj-inh-dot{ fill:var(--panel); stroke:var(--ink3); stroke-width:1.5; }
+.dsv-traj-act-helped{ stroke:var(--good); }
+.dsv-traj-act-hurt  { stroke:var(--bad); }
+.dsv-traj-act-mixed { stroke:var(--ink3); }
+.dsv-traj-act       { fill:none; stroke-width:2; }
+.dsv-traj-act-dot.dsv-traj-act-helped{ fill:var(--good); }
+.dsv-traj-act-dot.dsv-traj-act-hurt  { fill:var(--bad); }
+.dsv-traj-act-dot.dsv-traj-act-mixed { fill:var(--ink3); }
+.dsv-traj-act-dot   { stroke:var(--panel); stroke-width:1.5; }
+.dsv-traj-callout{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:10.5px; font-weight:600;
+}
+.dsv-traj-callout.dsv-traj-act-helped{ fill:var(--good); }
+.dsv-traj-callout.dsv-traj-act-hurt  { fill:var(--bad); }
+.dsv-traj-callout.dsv-traj-act-mixed { fill:var(--ink2); }
+.dsv-traj-legend{
+  display:flex; flex-wrap:wrap; gap:14px;
+  font-size:11px; color:var(--ink3); margin-top:6px;
+}
+.dsv-traj-legend .swdash,
+.dsv-traj-legend .swsolid{ display:inline-block; width:18px; height:2px; vertical-align:middle;
+  margin-right:6px; }
+.dsv-traj-legend .swdash{ border-top:2px dashed var(--ink3); height:0; }
+.dsv-traj-legend .swsolid.helped{ background:var(--good); }
+.dsv-traj-legend .swsolid.hurt  { background:var(--bad); }
+.dsv-traj-legend .swsolid.mixed { background:var(--ink3); }
+
+/* -- D. Timeline -------------------------------------------------------- */
+.dsv-tl{ list-style:none; margin:6px 0 0; padding:0; position:relative; }
+.dsv-tl > li{
+  display:flex; gap:12px; padding:8px 0 10px; align-items:flex-start;
+  position:relative;
+}
+.dsv-tl > li + li{ border-top:1px solid var(--line2); }
+.dsv-tl-date{
+  width:84px; flex:none; padding-top:3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:11px; color:var(--ink3);
+}
+/* Dot column: the dot itself + a dotted vertical "rail" rendered as a
+   pseudo-element so consecutive events read as a connected timeline. */
+.dsv-tl-dotcol{ position:relative; flex:none; width:14px; padding-top:5px; }
+.dsv-tl-dot{
+  width:10px; height:10px; border-radius:50%;
+  border:1.5px solid var(--panel); box-shadow:0 0 0 1px var(--line);
+  position:relative; z-index:1;
+}
+.dsv-tl-dot.sign-weakened    { background:var(--bad); }
+.dsv-tl-dot.sign-strengthened{ background:var(--good); }
+.dsv-tl-dot.sign-mixed       { background:var(--s-neutral); }
+.dsv-tl > li:not(:last-child) .dsv-tl-dotcol:after{
+  content:""; position:absolute; left:6px; top:18px; bottom:-10px;
+  border-left:2px dotted var(--line); z-index:0;
+}
+.dsv-tl-text{ flex:1; min-width:0; }
+.dsv-tl-label{ font-weight:600; color:var(--ink); font-size:13.5px; line-height:1.4; }
+.dsv-tl-detail{ font-size:12.8px; color:var(--ink2); line-height:1.55; margin-top:3px; }
+.dsv-tl-src{ font-size:11.5px; color:var(--ink3); margin-top:4px; }
+.dsv-tl-src a{ color:var(--accent); text-decoration:none; }
+.dsv-tl-src a:hover{ text-decoration:underline; }
+
+/* -- F. Certainty / counterargument ------------------------------------ */
+.dsv-meta-row{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+.dsv-counter{
+  background:var(--chip); border-radius:10px; padding:11px 13px;
+  border-left:3px solid var(--mid);
+  font-size:13px; line-height:1.6; color:var(--ink2);
+}
+.dsv-counter h4{
+  font-family:var(--font-display);
+  font-size:13.2px; font-weight:600; margin:0 0 6px; color:var(--ink);
+  letter-spacing:-0.005em;
+}
+
+/* -- Mobile tightening --------------------------------------------------- */
+@media (max-width:720px){
+  .dsv-verdict-h{ font-size:21px; }
+  .dsv-tl-date{ width:70px; font-size:10.5px; }
+  .dsv-traj{ padding:10px 10px 8px; }
 }
 </style>
 </head>
@@ -865,6 +1107,20 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   </div>
 </div>
 
+<!-- Evidence-pack modal: opened from the "View the evidence pack" affordance
+     in showCountry() when a pack exists for the selected country. Mirrors
+     the methodology modal pattern (role=dialog, aria-modal, backdrop-click
+     close, Esc handled by the global keydown handler). Content is built as
+     DOM by app.js (no iframe). -->
+<div class="modal" id="packModal" hidden role="dialog" aria-modal="true" aria-labelledby="packTitle">
+  <div class="modal-backdrop" onclick="closePack()"></div>
+  <div class="modal-panel modal-panel--pack">
+    <button class="modal-close" type="button" onclick="closePack()" aria-label="Close evidence pack">&times;</button>
+    <h2 id="packTitle" class="sr-only">Evidence pack</h2>
+    <div id="packBody" class="modal-body pack-body"></div>
+  </div>
+</div>
+
 <!-- Country-level reference data (not per-president). Load before app.js. -->
 <script src="data/country-exports.js"></script>
 <!-- Data: one file per president. Each registers itself on window.PRESIDENTS. -->
@@ -872,6 +1128,18 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 <!-- Add more presidents here, e.g.:
 <script src="data/biden.js"></script>
 <script src="data/obama.js"></script>  -->
+
+<!-- Evidence packs: one file per <president>/<country>. Each self-registers on
+     window.PACKS["<president>"]["<Country>"] and writes nothing else to window.
+     Must load AFTER data/<president>.js (so the registry exists alongside the
+     dossier) and BEFORE app.js (so showCountry sees them). A dossier entry
+     without a pack file is the normal, expected backfill state — no UI is
+     rendered for it. Add pack tags below; keep the comment marker so future
+     pack includes are easy to find. -->
+<script src="data/packs/trump/russia.js"></script>
+<!-- FUTURE PACKS — add new pack files here, e.g.:
+<script src="data/packs/trump/china.js"></script>
+<script src="data/packs/trump/germany.js"></script>  -->
 
 <script src="app.js"></script>
 </body>

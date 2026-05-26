@@ -42,6 +42,25 @@ const REQUIRED = [
   "role","confidence","evidence","contested","counterargument","sources"
 ];
 
+/* ---- Role/effect coherence sets — mirrored from the FP pipeline's
+        entry_checks.py (canonical source). Keep these two in sync: if
+        entry_checks.py adds or removes a role from either set, update
+        the matching set here in the same change. ---- */
+const POSITIVE_ACTIVE_ROLES = new Set(["Architect","Closer","Active Stabilizer","Stabilizer"]);
+const NEGATIVE_ROLES        = new Set(["Spoiler","Neglect"]);
+
+/* ---- Allowed top-level entry fields. Anything outside this set surfaces
+        as a WARN — app.js silently drops unknown fields, so off-schema
+        freelancing (magnitude_note / magnitude_justification /
+        magnitude_rationale) or leaked pipeline-internals
+        (e.g. _tiebreaker_rationale) would otherwise pass unnoticed. ---- */
+const CONDITIONAL_FIELDS = [
+  "unscoredReason","levers","userDirected","decisionVsExecution","durability",
+  "opportunityCost","escalationRisk","crossTheaterTradeoff","grandStrategyDispute",
+  "longHorizon","omissionNote","linkedPolicies"
+];
+const ALLOWED_FIELDS = new Set([...REQUIRED, ...CONDITIONAL_FIELDS]);
+
 /* ---- terminal color helpers (degrade silently when not a TTY) ---- */
 const isTTY = !!(process.stdout && process.stdout.isTTY);
 const c = (n, s) => isTTY ? `\x1b[${n}m${s}\x1b[0m` : s;
@@ -270,6 +289,37 @@ function validateEntry(key, e, ctx) {
     }
   } else if ("points" in e) {
     errors.push(`points must be an array`);
+  }
+
+  /* ---- Role/effect coherence (mirrors entry_checks.py) ----
+     A positive-active role committing a "hurt" effect, or a negative role
+     producing a "helped" effect, is almost always an authoring error —
+     the role label and the causal arrow contradict each other. Inheritor
+     + hurt is a legitimate edge case (inherited / structural cost the
+     president did not cause but bore), so it warns rather than errors.
+     entry_checks.py is canonical — keep this section in sync with it. */
+  if (e.role && e.effect) {
+    if (POSITIVE_ACTIVE_ROLES.has(e.role) && e.effect === "hurt") {
+      errors.push(`role/effect mismatch: '${e.role}' is a positive-active role but effect is 'hurt'`);
+    }
+    if (NEGATIVE_ROLES.has(e.role) && e.effect === "helped") {
+      errors.push(`role/effect mismatch: '${e.role}' is a negative role but effect is 'helped'`);
+    }
+    if (e.role === "Inheritor" && e.effect === "hurt") {
+      warns.push(`role/effect review: 'Inheritor' with effect 'hurt' needs human attribution review`);
+    }
+  }
+
+  /* ---- Unknown top-level fields ----
+     app.js renders only the keys it knows about; anything else is dropped
+     silently. Surface those keys so off-schema freelancing
+     (magnitude_note / magnitude_justification / magnitude_rationale, etc.)
+     or leaked pipeline-internals (e.g. _tiebreaker_rationale) don't ship
+     unnoticed. WARN, not ERROR — the data still renders. */
+  for (const k of Object.keys(e)) {
+    if (!ALLOWED_FIELDS.has(k)) {
+      warns.push(`unknown top-level field '${k}' (not in schema; app.js will silently drop it)`);
+    }
   }
 
   // linkedPolicies — must resolve to an existing dossier key (after alias)

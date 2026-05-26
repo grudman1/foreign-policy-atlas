@@ -452,6 +452,23 @@ function _buildLeversHtml(d){
   return rows;
 }
 
+/* ---- Country dossier — visualization layer ----------------------------
+   showCountry() composes a dossier from seven named builder functions.
+   Each builder returns "" when its inputs are absent so v2 entries, the
+   US home cell, `unscored` entries, and entries without a pack all
+   degrade gracefully. The top-to-bottom order is:
+
+     A _dsvHeader      country name, state swatch, exports, region row
+     B _dsvVerdict     the mechanical verdict + outcome first sentence
+     C _dsvTrajectory  inline-SVG inherited-vs-actual chart
+     D _dsvTimeline    dotted timeline (pack.timeline — single source)
+     E _dsvLevers      five-levers grid
+     F _dsvCertainty   confidence/evidence/role chips + counterargument
+     G _dsvFooter      collapsible <details> + linked policies + pack chip
+
+   ADDING A NEW DOSSIER FIELD MUST NEVER REQUIRE CHANGING showCountry —
+   route it through one of these builders, or add a new builder named
+   _dsv<Section> and slot it into the dispatcher. */
 function showCountry(name){
   setTabSilent("country");
   selRegion=null;
@@ -465,143 +482,349 @@ function showCountry(name){
     selName=null; paint(); paintDeltas(); return;
   }
   selName=name; refreshAnalysisBtns();
-  var sColor=STATE_COLOR[d.state]||"--s-neutral";
-  var sName =STATE_NAME [d.state]||"Unclassified";
-  var sDesc =STATE_DESC [d.state]||"";
 
-  // v3 fields with v2 back-compat
-  var eff       = effectOf(d);
-  var mag       = magnitudeOf(d);
-  var inherited = inheritedOf(d);
+  var P    = window.PRESIDENTS[CURRENT] || {};
+  var pack = packFor(k);
+
+  var html =
+      _dsvHeader(d, k)
+    + _dsvVerdict(d, k, P)
+    + _dsvTrajectory(d, pack)
+    + _dsvTimeline(pack)
+    + _dsvLevers(d)
+    + _dsvCertainty(d)
+    + _dsvFooter(d, k, pack);
+
+  pb.innerHTML=html;
+  paint(); paintDeltas();
+  var fF=FEATFORKEY&&FEATFORKEY(k); if(fF) flyTo(fF);
+}
+
+/* ---- A. Header ---------------------------------------------------------
+   State swatch + country name + top-3 export glyphs + region row + the
+   honesty pills (contested / editor-directed) that must surface above the
+   fold per CLAUDE.md. The US home entry suppresses the badges row. */
+function _dsvHeader(d, k){
+  var sColor = STATE_COLOR[d.state] || "--s-neutral";
+  var sName  = STATE_NAME [d.state] || "Unclassified";
+  var sDesc  = STATE_DESC [d.state] || "";
+  var safeReg= (d.region||"").replace(/'/g,"\\'");
   var contested = isContestedEntry(d);
-  var pts       = pointsOf(d);
-  var safeReg   = (d.region||"").replace(/'/g,"\\'");
+  var mag       = magnitudeOf(d);
 
-  // Outcome split: the first sentence becomes the at-a-glance "Now" line; any
-  // remainder drops into the "Why this scoring" drill-down so the summary
-  // stays short even when the full outcome is paragraph-length.
-  var outFull  = (d.outcome && d.outcome!=="—") ? d.outcome : "";
-  var outSplit = _splitOutcomeHeadline(outFull);
-
-  var expHtml='';
-  var expList=(window.COUNTRY_EXPORTS||{})[k];
+  var expHtml = '';
+  var expList = (window.COUNTRY_EXPORTS||{})[k];
   if(expList && expList.length){
-    expHtml='<span class="exports" title="Top exports" aria-label="Top exports">';
+    expHtml = '<span class="exports" title="Top exports" aria-label="Top exports">';
     expList.slice(0,3).forEach(function(x){
-      expHtml+='<span class="exp-sym" title="'+_escHtml(x.label||'')+'" aria-label="'+_escHtml(x.label||'')+'">'+(x.sym||'')+'</span>';
+      expHtml += '<span class="exp-sym" title="'+_escHtml(x.label||'')+'" aria-label="'+_escHtml(x.label||'')+'">'+(x.sym||'')+'</span>';
     });
-    expHtml+='</span>';
+    expHtml += '</span>';
   }
-  var html='<div class="ph"><span class="sw" style="background:var('+sColor+')"></span><h2>'+_escHtml(k)+'</h2>'+expHtml+'</div>';
 
-  // ===== SUMMARY (always visible): badges + region + Inherited → Now =========
+  var html = '<div class="ph"><span class="sw" style="background:var('+sColor+')"></span>'+
+             '<h2>'+_escHtml(k)+'</h2>'+expHtml+'</div>';
 
-  // ----- Badges: state, effect, plus honesty pills (contested / editor-directed).
-  // The honesty pills must surface in the summary per CLAUDE.md's "mark
-  // contested calls" rule — burying them in a closed section would hide them.
-  if(d.state!=="us"){
-    html+='<div class="badges">';
-    html+='<span class="badge"><span class="sw" style="background:var('+sColor+')"></span>'+
-      '<b>'+_escHtml(sName)+'</b>'+(sDesc?' &middot; '+_escHtml(sDesc):'')+'</span>';
+  if(d.state !== "us"){
+    html += '<div class="badges">';
+    html += '<span class="badge"><span class="sw" style="background:var('+sColor+')"></span>'+
+            '<b>'+_escHtml(sName)+'</b>'+(sDesc?' &middot; '+_escHtml(sDesc):'')+'</span>';
     if(d.effect && EFFECT_NAME[d.effect]){
       var effLabel = EFFECT_NAME[d.effect];
       if(mag) effLabel += ' &middot; '+_escHtml(MAGNITUDE_NAME[mag]||mag);
       if(d.effect==="unscored" && d.unscoredReason && UNSCORED_REASON_NAME[d.unscoredReason]){
         effLabel += ' &middot; '+_escHtml(UNSCORED_REASON_NAME[d.unscoredReason]);
       }
-      html+='<span class="badge"><span class="darr" data-effect="'+d.effect+'">'+EFFECT_GLYPH[d.effect]+'</span>'+
-            '<b>'+effLabel+'</b></span>';
+      html += '<span class="badge"><span class="darr" data-effect="'+d.effect+'">'+EFFECT_GLYPH[d.effect]+'</span>'+
+              '<b>'+effLabel+'</b></span>';
     }
     if(contested){
-      html+='<span class="badge badge-warn" title="Reasonable analysts could score this differently">contested</span>';
+      html += '<span class="badge badge-warn" title="Reasonable analysts could score this differently">contested</span>';
     }
     if(d.userDirected){
-      html+='<span class="badge badge-warn" title="Set at editor\'s direction against the stricter analytic read">editor-directed</span>';
+      html += '<span class="badge badge-warn" title="Set at editor\'s direction against the stricter analytic read">editor-directed</span>';
     }
-    html+='</div>';
+    html += '</div>';
   }
 
-  // Region link (interactive when the president defines regions, else a plain label).
   if(d.region){
     if(REGIONS && REGIONS[d.region]){
-      html+='<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+_escHtml(d.region)+' &rsaquo; view region</div>';
-    } else if(d.region!=="—"){
-      html+='<div class="reg reg-static">'+_escHtml(d.region)+'</div>';
+      html += '<div class="reg" onclick="showRegion(\''+safeReg+'\')">'+_escHtml(d.region)+' &rsaquo; view region</div>';
+    } else if(d.region !== "—"){
+      html += '<div class="reg reg-static">'+_escHtml(d.region)+'</div>';
     }
   }
+  return html;
+}
 
-  // ----- Inherited → Now: the counterfactual contrast at a glance. Replaces
-  // the separate .baseline and .outcome-line blocks. Only renders when at
-  // least one of the two sides has content; e.g. the US home entry suppresses
-  // both and shows nothing here. _renderProseBlock handles both shapes of
-  // `inherited` (string → paragraphs; array → bulleted list) so the section
-  // never mixes prose and bullets.
-  var hasInh = (Array.isArray(inherited) ? inherited.length>0 : !!inherited);
-  var hasOut = !!outSplit.first;
-  if(hasInh || hasOut){
-    html+='<div class="inh-now">';
-    if(hasInh){
-      html+='<div class="inh-row inh-before">'+
-            '<span class="inh-lab">Inherited trajectory</span>'+
-            _renderProseBlock(inherited)+
-            '</div>';
-    }
-    if(hasOut){
-      html+='<div class="inh-row inh-after">'+
-            '<span class="inh-lab">Now &mdash; under this president</span>'+
-            _renderProseBlock(outSplit.first)+
-            '</div>';
-    }
-    html+='</div>';
+/* ---- B. The verdict ---------------------------------------------------
+   MECHANICAL TEMPLATE — generates no new prose. The headline composes
+   {Subject} {adverb} {verb} "the U.S. position toward {Country}, measured
+   against the trajectory they inherited." The first sentence of the
+   existing `outcome` field renders beneath it verbatim.
+
+   The effect attaches to "the U.S. position toward {Country}" — never to
+   the bare country — because hurt means the U.S. position weakened, not
+   that the country itself was weakened. Omitted entirely for `unscored`
+   and for the US home cell. */
+var DSV_VERBS   = { helped: "strengthened", hurt: "weakened" };
+var DSV_ADVERBS = { modest: "modestly",  material: "materially", major: "sharply" };
+function _dsvVerdict(d, k, P){
+  if(d.state === "us") return "";
+  var eff = effectOf(d);
+  if(eff === "unscored") return "";
+
+  var subject = P.subject || "This president";
+  var country = _escHtml(k);
+  var head;
+  if(eff === "mixed"){
+    head = _escHtml(subject)+' had a mixed effect on the U.S. position toward '+country+'.';
+  } else if(eff === "helped" || eff === "hurt"){
+    var mag = magnitudeOf(d);
+    var adv = mag && DSV_ADVERBS[mag] ? DSV_ADVERBS[mag]+' ' : '';
+    var verbCls = (eff === "helped") ? "dsv-verb-helped" : "dsv-verb-hurt";
+    head = _escHtml(subject)+' '+adv+'<span class="'+verbCls+'">'+DSV_VERBS[eff]+'</span>'+
+           ' the U.S. position toward '+country+'.';
+  } else {
+    return "";  // any unrecognized effect → bail out gracefully
   }
 
-  // ===== DRILL-DOWN (collapsed by default) ===================================
+  var outFull  = (d.outcome && d.outcome !== "—") ? d.outcome : "";
+  var outFirst = _splitOutcomeHeadline(outFull).first;
+  var outHtml  = outFirst ? '<p class="dsv-verdict-outcome">'+outFirst+'</p>' : '';
 
-  // ----- Why this scoring: outcome remainder, causal points, counterargument.
-  // The outcome remainder is multi-sentence prose — render through
-  // _renderProseBlock so each sentence gets its own <p> rather than reading
-  // as a single wall.
-  var whyHtml = "";
-  if(outSplit.rest){
+  return '<section class="dsv-section dsv-verdict">'+
+           '<h3 class="dsv-verdict-h">'+head+'</h3>'+
+           '<span class="dsv-verdict-clause">measured against the trajectory they inherited</span>'+
+           outHtml+
+         '</section>';
+}
+
+/* ---- C. Trajectory chart ----------------------------------------------
+   Inline SVG: a "stronger ↑ / weaker ↓ U.S. position" axis, Jan 2025 →
+   asOf. A dashed inherited path (gray, hollow endpoint) and a solid
+   effect-colored path (filled endpoint) start from the same origin and
+   diverge to encode the president's net effect against the counterfactual.
+
+   Endpoint values:
+     - From pack.trajectory.{inheritedEnd, actualEnd} when provided.
+     - Else derived: inheritedEnd = 0 (the counterfactual IS the unchanged
+       baseline), actualEnd = sign(effect) × {modest:0.33, material:0.66,
+       major:1}.
+
+   Omitted for unscored, US home, AND mixed-without-pack-trajectory
+   (overlapping flat paths would read as a rendering bug). */
+var DSV_MAG_WEIGHT = { modest: 0.33, material: 0.66, major: 1 };
+function _dsvTrajectory(d, pack){
+  if(d.state === "us") return "";
+  var eff = effectOf(d);
+  if(eff === "unscored") return "";
+
+  var t   = (pack && pack.trajectory) || null;
+  var hasPackTraj = !!(t && (t.inheritedEnd != null || t.actualEnd != null));
+  if(eff === "mixed" && !hasPackTraj) return "";  // avoid degenerate chart
+
+  // Resolve endpoint values, clamped to [-1, 1].
+  function clamp(v){ v = +v; if(isNaN(v)) v = 0; return Math.max(-1, Math.min(1, v)); }
+  var inheritedEnd, actualEnd;
+  if(hasPackTraj){
+    inheritedEnd = clamp(t.inheritedEnd != null ? t.inheritedEnd : 0);
+    actualEnd    = clamp(t.actualEnd    != null ? t.actualEnd    : 0);
+  } else {
+    inheritedEnd = 0;
+    var w = DSV_MAG_WEIGHT[magnitudeOf(d)] || 0.33;
+    actualEnd = (eff === "helped" ? w : -w);
+  }
+
+  // SVG geometry
+  var W = 640, H = 170, startX = 60, endX = 560, midY = 95, range = 55;
+  var yFor = function(v){ return midY - v * range; };
+  var yInh = yFor(inheritedEnd), yAct = yFor(actualEnd);
+  var midX = (startX + endX) / 2;
+  // Smooth quadratic that bows toward the endpoint so neither path looks
+  // like a straight diagonal — the bow conveys "trajectory" visually.
+  var pathInh = 'M '+startX+' '+midY+' Q '+midX+' '+((midY + yInh)/2)+' '+endX+' '+yInh;
+  var pathAct = 'M '+startX+' '+midY+' Q '+midX+' '+((midY + yAct)/2)+' '+endX+' '+yAct;
+  var actCls  = 'dsv-traj-act-'+eff;
+
+  // Callout — magnitude word for helped/hurt, "mixed" for mixed
+  var callout;
+  if(eff === "mixed"){ callout = 'mixed'; }
+  else {
+    var magName = MAGNITUDE_NAME[magnitudeOf(d)] || '';
+    var sign    = (eff === "helped") ? '+' : '−';
+    var stem    = (eff === "helped") ? 'stronger' : 'weaker';
+    callout = sign + (magName ? magName+' ' : '') + stem;
+  }
+  // Callout y placement: above the dot when it's in the upper half, below
+  // when lower, so the label never overlaps the path.
+  var calloutY = yAct + (yAct <= midY ? -12 : 18);
+  var asOfLabel = _escHtml(((window.PRESIDENTS[CURRENT]||{}).asOf) || "today");
+
+  // Legend swatches use the effect-keyed solid classes (no inline color).
+  var solidLegendCls = (eff === "helped" || eff === "hurt" || eff === "mixed") ? eff : "mixed";
+
+  var svg = ''
+    + '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Trajectory chart: inherited vs. actual U.S. position">'
+    +   '<line class="dsv-traj-mid" x1="'+startX+'" y1="'+midY+'" x2="'+endX+'" y2="'+midY+'"/>'
+    +   '<text class="dsv-traj-axis" x="'+startX+'" y="34" text-anchor="start">stronger U.S. position</text>'
+    +   '<text class="dsv-traj-axis" x="'+startX+'" y="160" text-anchor="start">weaker U.S. position</text>'
+    +   '<text class="dsv-traj-tick" x="'+startX+'" y="'+(midY+24)+'" text-anchor="start">Jan 2025</text>'
+    +   '<text class="dsv-traj-tick" x="'+endX+'" y="'+(midY+24)+'" text-anchor="end">'+asOfLabel+'</text>'
+    +   '<path class="dsv-traj-inh" d="'+pathInh+'"/>'
+    +   '<path class="dsv-traj-act '+actCls+'" d="'+pathAct+'"/>'
+    +   '<circle class="dsv-traj-inh-dot" cx="'+endX+'" cy="'+yInh+'" r="6"/>'
+    +   '<circle class="dsv-traj-act-dot '+actCls+'" cx="'+endX+'" cy="'+yAct+'" r="6.5"/>'
+    +   '<text class="dsv-traj-callout '+actCls+'" x="'+(endX-10)+'" y="'+calloutY+'" text-anchor="end">'+_escHtml(callout)+'</text>'
+    + '</svg>';
+
+  var legend = '<div class="dsv-traj-legend">'
+    +   '<span><span class="swdash"></span>inherited trajectory</span>'
+    +   '<span><span class="swsolid '+solidLegendCls+'"></span>actual under this president</span>'
+    + '</div>';
+
+  return '<section class="dsv-section">'+
+           '<p class="dsv-eyebrow">Compared to what?</p>'+
+           '<div class="dsv-traj">'+svg+legend+'</div>'+
+         '</section>';
+}
+
+/* ---- D. Timeline ------------------------------------------------------
+   READ-ONLY from window.PACKS[CURRENT][k].timeline — never parses
+   points[]. Dots colored by sign (weakened=--bad, strengthened=--good,
+   mixed=--s-neutral). When no pack or empty timeline, return "" so the
+   23 currently pack-less entries simply hide this section.
+
+   SINGLE-SOURCE RULE: this section and the pack modal both read the SAME
+   timeline[] array, so a sign fix in data/packs/... propagates to both
+   surfaces with no code change. */
+var DSV_SIGNS = { weakened: 1, strengthened: 1, mixed: 1 };
+function _dsvTimeline(pack){
+  if(!pack || !Array.isArray(pack.timeline) || !pack.timeline.length) return "";
+
+  var rows = '';
+  pack.timeline.forEach(function(t){
+    if(!t) return;
+    var signCls = DSV_SIGNS[t.sign] ? ('sign-'+t.sign) : 'sign-mixed';
+    var src = '';
+    if(t.sourceLabel || t.sourceUrl){
+      var lab = _escHtml(t.sourceLabel || t.sourceUrl || '');
+      src = '<div class="dsv-tl-src">'+
+        (t.sourceUrl
+          ? '<a href="'+_escHtml(t.sourceUrl)+'" target="_blank" rel="noopener noreferrer">'+lab+'</a>'
+          : lab)+
+        '</div>';
+    }
+    rows += '<li>'+
+              '<div class="dsv-tl-date">'+_escHtml(t.date||'')+'</div>'+
+              '<div class="dsv-tl-dotcol"><span class="dsv-tl-dot '+signCls+'" title="'+_escHtml(t.sign||'mixed')+'"></span></div>'+
+              '<div class="dsv-tl-text">'+
+                '<div class="dsv-tl-label">'+_escHtml(t.label||'')+'</div>'+
+                (t.detail ? '<div class="dsv-tl-detail">'+_escHtml(t.detail)+'</div>' : '')+
+                src+
+              '</div>'+
+            '</li>';
+  });
+
+  return '<section class="dsv-section">'+
+           '<p class="dsv-eyebrow">What actually happened, when</p>'+
+           '<ul class="dsv-tl">'+rows+'</ul>'+
+         '</section>';
+}
+
+/* ---- E. Levers grid ---------------------------------------------------
+   Wraps the existing _buildLeversHtml(d) — unchanged — and surfaces it as
+   a top-level section. Returns "" when the entry has no levers. */
+function _dsvLevers(d){
+  var inner = _buildLeversHtml(d);
+  if(!inner) return "";
+  return '<section class="dsv-section">'+
+           '<p class="dsv-eyebrow">Why we scored it</p>'+
+           inner+
+         '</section>';
+}
+
+/* ---- F. Certainty + counterargument -----------------------------------
+   Role / Confidence / Evidence chips, contested pill, and the FULL
+   counterargument framed as "the other side of the argument." No
+   truncation. Returns "" if none of the inputs have content. */
+function _dsvCertainty(d){
+  var chips = [];
+  if(d.role)       chips.push({lab:'Role',       val:d.role});
+  if(d.confidence) chips.push({lab:'Confidence', val:d.confidence});
+  if(d.evidence)   chips.push({lab:'Evidence',   val:d.evidence});
+
+  var hasCounter = d.counterargument && d.counterargument !== "—";
+  var hasContested = isContestedEntry(d);
+
+  if(!chips.length && !hasCounter && !hasContested) return "";
+
+  var html = '<section class="dsv-section">'+
+             '<p class="dsv-eyebrow">How sure we are</p>';
+
+  if(chips.length || hasContested){
+    html += '<div class="dsv-meta-row">';
+    chips.forEach(function(c){
+      html += '<span class="metachip"><span class="mclab">'+c.lab+'</span><span class="mcval">'+_escHtml(c.val)+'</span></span>';
+    });
+    if(hasContested){
+      html += '<span class="badge badge-warn" title="Reasonable analysts could score this differently">contested</span>';
+    }
+    html += '</div>';
+  }
+
+  if(hasCounter){
+    html += '<div class="dsv-counter">'+
+              '<h4>The other side of the argument</h4>'+
+              _renderProseBlock(d.counterargument)+
+            '</div>';
+  }
+
+  html += '</section>';
+  return html;
+}
+
+/* ---- G. Collapsible footer + linked policies + pack chip --------------
+   Three <details>: full causal argument (points + outcome remainder),
+   analytic notes (conditional notes + userDirected), and the full
+   sources list. Followed by linked-policies chips, the outcomeBlock
+   projection, and — when a pack exists for this country — the existing
+   "View the evidence pack" button (second consumer of pack.timeline). */
+function _dsvFooter(d, k, pack){
+  var html = '';
+
+  // ----- 1. Full causal argument
+  var pts      = pointsOf(d);
+  var sColor   = STATE_COLOR[d.state] || "--s-neutral";
+  var outFull  = (d.outcome && d.outcome !== "—") ? d.outcome : "";
+  var outRest  = _splitOutcomeHeadline(outFull).rest;
+  var inherited= inheritedOf(d);
+  var hasInh   = Array.isArray(inherited) ? inherited.length>0 : !!inherited;
+
+  var whyHtml = '';
+  if(hasInh){
+    whyHtml += '<div class="condnote"><span class="condnote-lab">Inherited trajectory</span>'+
+               _renderProseBlock(inherited)+'</div>';
+  }
+  if(outRest){
     whyHtml += '<div class="outcome-rest"><span class="blab">Outcome (continued)</span>'+
-               _renderProseBlock(outSplit.rest)+'</div>';
+               _renderProseBlock(outRest)+'</div>';
   }
   if(pts.length){
     if(whyHtml) whyHtml += '<div class="dsec-sublab">Causal argument</div>';
     whyHtml += '<ul class="pts" style="--dotc:var('+sColor+')">';
-    pts.forEach(function(p){whyHtml+='<li>'+p+'</li>';});
+    pts.forEach(function(p){ whyHtml += '<li>'+p+'</li>'; });
     whyHtml += '</ul>';
   }
-  if(d.counterargument && d.counterargument!=="—"){
-    whyHtml += '<div class="counterarg"><span class="blab">Strongest counterargument</span>'+
-               _renderProseBlock(d.counterargument)+'</div>';
-  }
   var whyMeta = pts.length ? (pts.length+" point"+(pts.length===1?"":"s")) : "";
-  html += _detailsSection("Why this scoring", whyHtml, whyMeta);
+  html += _detailsSection("Full causal argument", whyHtml, whyMeta);
 
-  // ----- Five levers (v3 object form; back-compat to legacy array form).
-  html += _detailsSection("Five levers", _buildLeversHtml(d));
-
-  // ----- Analytic notes: meta chips (role/confidence/evidence) + conditional
-  // notes (durability, opportunity cost, escalation risk, …) + user-directed
-  // explanation + the full contested note.
-  var anHtml = "";
-  var metaChips=[];
-  if(d.role)        metaChips.push({lab:'Role',       val:d.role});
-  if(d.confidence)  metaChips.push({lab:'Confidence', val:d.confidence});
-  if(d.evidence)    metaChips.push({lab:'Evidence',   val:d.evidence});
-  if(metaChips.length){
-    anHtml += '<div class="metachips">';
-    metaChips.forEach(function(c){
-      anHtml += '<span class="metachip"><span class="mclab">'+c.lab+'</span><span class="mcval">'+_escHtml(c.val)+'</span></span>';
-    });
-    anHtml += '</div>';
-  }
+  // ----- 2. Analytic notes — conditional notes + user-directed.
+  // Role/Confidence/Evidence chips moved up to F (don't duplicate).
+  var anHtml = '';
   CONDITIONAL_NOTE_ORDER.forEach(function(field){
-    var v=d[field];
-    if(v && v!=="—"){
-      // _renderProseBlock paragraph-splits multi-sentence notes so the label
-      // sits on its own line above clean paragraphs (not a run-on wall).
+    var v = d[field];
+    if(v && v !== "—"){
       anHtml += '<div class="condnote"><span class="condnote-lab">'+CONDITIONAL_NOTE_LABEL[field]+'</span>'+
                 _renderProseBlock(v)+'</div>';
     }
@@ -609,13 +832,10 @@ function showCountry(name){
   if(d.userDirected){
     anHtml += '<div class="userdir"><span class="blab">User-directed placement</span>'+d.userDirected+'</div>';
   }
-  if(contested){
-    anHtml += '<div class="interp">Contested call &mdash; reasonable analysts could score this differently.</div>';
-  }
   html += _detailsSection("Analytic notes", anHtml);
 
-  // ----- Sources.
-  var srcHtml = "";
+  // ----- 3. Sources
+  var srcHtml = '';
   if(d.sources && d.sources.length){
     srcHtml = '<ul class="sources">';
     d.sources.forEach(function(s){
@@ -632,24 +852,46 @@ function showCountry(name){
   var srcMeta = (d.sources && d.sources.length) ? (d.sources.length+" source"+(d.sources.length===1?"":"s")) : "";
   html += _detailsSection("Sources", srcHtml, srcMeta);
 
-  // ===== Always-visible footer ===============================================
-
-  // Linked policies: cross-card navigation chips.
+  // ----- Linked policies (always-visible chips)
   if(d.linkedPolicies && d.linkedPolicies.length){
-    html+='<div class="sech">Linked policies</div><div class="linked-row">';
+    html += '<div class="sech">Linked policies</div><div class="linked-row">';
     d.linkedPolicies.forEach(function(lp){
-      var safe=lp.replace(/'/g,"\\'");
-      html+='<button type="button" class="linkchip" onclick="showCountry(\''+safe+'\')">'+_escHtml(lp)+'</button>';
+      var safe = lp.replace(/'/g,"\\'");
+      html += '<button type="button" class="linkchip" onclick="showCountry(\''+safe+'\')">'+_escHtml(lp)+'</button>';
     });
-    html+='</div>';
+    html += '</div>';
   }
 
-  // OUTCOMES best/base/down projection (kept verbatim — distinct from `outcome`).
-  html+=outcomeBlock(k);
+  // ----- Best/base/down projections
+  html += outcomeBlock(k);
 
-  pb.innerHTML=html;
-  paint(); paintDeltas();
-  var fF=FEATFORKEY&&FEATFORKEY(k); if(fF) flyTo(fF);
+  // ----- Evidence-pack chip — second consumer of pack.timeline
+  if(pack){
+    html += '<div class="sech">Evidence</div>'+
+            '<div class="linked-row">'+
+              '<button type="button" class="linkchip" onclick="openPack(\''+
+                k.replace(/'/g,"\\'")+'\')">View the evidence pack</button>'+
+            '</div>';
+  }
+
+  return html;
+}
+
+/* ---- Evidence-pack resolution -------------------------------------------
+   Packs live in data/packs/<president>/<country>.js and self-register on
+   window.PACKS[president][CountryKey]. Uses the same keyFor/ALIAS resolution
+   as the dossier so the pack key always lines up with the entry it backs.
+   Returns the pack object or null. */
+function packFor(nameOrKey){
+  if(!CURRENT) return null;
+  var byPres = (window.PACKS||{})[CURRENT];
+  if(!byPres) return null;
+  // Try as-is first (caller may already pass a resolved dossier key), then
+  // fall back to keyFor() so a raw map-name resolves through the alias table.
+  if(byPres[nameOrKey]) return byPres[nameOrKey];
+  var k = keyFor(nameOrKey);
+  if(k && byPres[k]) return byPres[k];
+  return null;
 }
 
 function showRegion(r){
@@ -1211,6 +1453,226 @@ function closeMethodology(){
   if(_methPrevFocus && _methPrevFocus.focus) _methPrevFocus.focus();
 }
 
+/* ---- Evidence-pack modal ----------------------------------------------
+   Mirrors the methodology-modal pattern (role=dialog, aria-modal,
+   backdrop-click close, focus to the close button, Esc handled via the
+   global keydown handler below). Content is built as DOM here — no iframe.
+   The canonical 7 memo angles fix the render order so the layout stays
+   consistent across packs even when some angles are omitted. */
+var PACK_MEMO_ORDER = [
+  "Diplomacy",
+  "Security",
+  "Economic statecraft",
+  "Technology & export controls",
+  "Human rights",
+  "Regional dynamics",
+  "Time cuts"
+];
+var PACK_SIGN_LABEL = {
+  weakened:     "Weakened",
+  strengthened: "Strengthened",
+  mixed:        "Mixed"
+};
+var _packPrevFocus=null;
+
+function openPack(nameOrKey){
+  var p = packFor(nameOrKey);
+  var modal = document.getElementById("packModal");
+  var body  = document.getElementById("packBody");
+  if(!p || !modal || !body) return;
+  _packPrevFocus = document.activeElement;
+  body.innerHTML = _renderPackHtml(p, nameOrKey);
+  modal.hidden = false;
+  var closeBtn = modal.querySelector(".modal-close");
+  if(closeBtn) closeBtn.focus();
+}
+function closePack(){
+  var modal = document.getElementById("packModal");
+  if(!modal) return;
+  modal.hidden = true;
+  // Reset scroll for the next open so a long pack doesn't reopen mid-scroll.
+  var body = document.getElementById("packBody");
+  if(body) body.scrollTop = 0;
+  if(_packPrevFocus && _packPrevFocus.focus) _packPrevFocus.focus();
+}
+
+/* Build the full pack modal body. All prose flows through _renderProseBlock
+   so multi-sentence values render as separate paragraphs (no run-on walls).
+   Memos go through _detailsSection (collapsed by default). Nothing is
+   stripped — empty fields are simply not rendered. */
+function _renderPackHtml(p, fallbackName){
+  var title = _escHtml(p.country || fallbackName || "");
+  var meta  = [];
+  if(p.packVersion) meta.push('<b>v'+_escHtml(p.packVersion)+'</b>');
+  if(p.asOf)        meta.push('asOf: '+_escHtml(p.asOf));
+  if(p.pipeline)    meta.push(_escHtml(p.pipeline));
+
+  var html = '';
+
+  // --- Header: country · "Evidence pack" · packVersion · pipeline -----------
+  html += '<div class="pack-head">';
+  html += '<h2>'+title+'</h2>';
+  html += '<span class="pack-kind">Evidence pack</span>';
+  if(meta.length){
+    html += '<div class="pack-meta">'+meta.join(' &nbsp;·&nbsp; ')+'</div>';
+  }
+  html += '</div>';
+
+  // --- Timeline (required, non-empty per schema) ---------------------------
+  if(Array.isArray(p.timeline) && p.timeline.length){
+    html += '<div class="pack-sech">Timeline</div>';
+    html += '<ul class="pack-timeline">';
+    p.timeline.forEach(function(t){
+      if(!t) return;
+      var signCls = (t.sign==="strengthened" || t.sign==="weakened" || t.sign==="mixed")
+                    ? ('sign-'+t.sign) : 'sign-mixed';
+      var signTitle = PACK_SIGN_LABEL[t.sign] || "Mixed";
+      var srcHtml = '';
+      if(t.sourceLabel || t.sourceUrl){
+        var lab = _escHtml(t.sourceLabel || t.sourceUrl || '');
+        srcHtml = '<div class="pt-src">'+
+          (t.sourceUrl
+             ? '<a href="'+_escHtml(t.sourceUrl)+'" target="_blank" rel="noopener noreferrer">'+lab+'</a>'
+             : lab)+
+          '</div>';
+      }
+      html +=
+        '<li>'+
+          '<div class="pt-date">'+_escHtml(t.date||'')+'</div>'+
+          '<div class="pt-sign '+signCls+'" title="'+_escHtml(signTitle)+'" aria-label="'+_escHtml(signTitle)+'"></div>'+
+          '<div class="pt-text">'+
+            '<div class="pt-label">'+_escHtml(t.label||'')+'</div>'+
+            (t.detail ? '<div class="pt-detail">'+_escHtml(t.detail)+'</div>' : '')+
+            srcHtml+
+          '</div>'+
+        '</li>';
+    });
+    html += '</ul>';
+  }
+
+  // --- Baseline ------------------------------------------------------------
+  if(p.baseline){
+    html += '<div class="pack-sech">Inherited trajectory</div>';
+    html += '<div class="pack-block">'+_renderProseBlock(p.baseline)+'</div>';
+  }
+
+  // --- What happened -------------------------------------------------------
+  if(p.whatHappened){
+    html += '<div class="pack-sech">What happened</div>';
+    html += '<div class="pack-block">'+_renderProseBlock(p.whatHappened)+'</div>';
+  }
+
+  // --- The 7 policy-angle memos, rendered through _detailsSection ---------
+  // Fix render order with PACK_MEMO_ORDER so layouts stay consistent across
+  // packs; unknown angles get appended at the end so nothing is dropped (the
+  // validator flags them separately).
+  if(Array.isArray(p.memos) && p.memos.length){
+    html += '<div class="pack-sech">Memos by angle</div>';
+    var byAngle = {};
+    p.memos.forEach(function(m){
+      if(!m || !m.angle) return;
+      // Preserve first occurrence; duplicates surface in the validator, but
+      // the renderer should still show something rather than blank out.
+      if(!byAngle[m.angle]) byAngle[m.angle] = m;
+    });
+    var rendered = {};
+    PACK_MEMO_ORDER.forEach(function(angle){
+      var m = byAngle[angle]; if(!m) return;
+      html += _renderMemoSection(m);
+      rendered[angle] = true;
+    });
+    // Any non-canonical angles (validator warns; renderer doesn't strip).
+    p.memos.forEach(function(m){
+      if(!m || !m.angle || rendered[m.angle]) return;
+      if(PACK_MEMO_ORDER.indexOf(m.angle) !== -1) return;
+      html += _renderMemoSection(m);
+    });
+  }
+
+  // --- Attribution signals -------------------------------------------------
+  if(Array.isArray(p.attributionSignals) && p.attributionSignals.length){
+    html += '<div class="pack-sech">Attribution signals</div>';
+    html += '<ul class="pack-list">';
+    p.attributionSignals.forEach(function(s){
+      if(!s) return;
+      var text = _escHtml(s.text||'');
+      var srcHtml = '';
+      if(s.sourceLabel || s.sourceUrl){
+        var lab = _escHtml(s.sourceLabel || s.sourceUrl || '');
+        srcHtml = '<span class="pl-src">'+
+          (s.sourceUrl
+            ? '<a href="'+_escHtml(s.sourceUrl)+'" target="_blank" rel="noopener noreferrer">'+lab+'</a>'
+            : lab)+
+          '</span>';
+      }
+      html += '<li>'+text+srcHtml+'</li>';
+    });
+    html += '</ul>';
+  }
+
+  // --- Contested points ----------------------------------------------------
+  if(Array.isArray(p.contestedPoints) && p.contestedPoints.length){
+    html += '<div class="pack-sech">Contested points</div>';
+    html += '<ul class="pack-list">';
+    p.contestedPoints.forEach(function(c){
+      if(!c) return;
+      html += '<li>'+_escHtml(c)+'</li>';
+    });
+    html += '</ul>';
+  }
+
+  // --- Gaps ----------------------------------------------------------------
+  if(Array.isArray(p.gaps) && p.gaps.length){
+    html += '<div class="pack-sech">Gaps the pack could not close</div>';
+    html += '<ul class="pack-list">';
+    p.gaps.forEach(function(g){
+      if(!g) return;
+      html += '<li>'+_escHtml(g)+'</li>';
+    });
+    html += '</ul>';
+  }
+
+  // --- Sources (full list at the bottom) -----------------------------------
+  if(Array.isArray(p.sources) && p.sources.length){
+    html += '<div class="pack-sech">Sources</div>';
+    html += '<ul class="sources">';
+    p.sources.forEach(function(s){
+      if(!s) return;
+      var lab = _escHtml(s.label||'');
+      if(s.url){
+        html += '<li><a href="'+_escHtml(s.url)+'" target="_blank" rel="noopener noreferrer">'+lab+'</a></li>';
+      } else {
+        html += '<li>'+lab+'</li>';
+      }
+    });
+    html += '</ul>';
+  }
+
+  return html;
+}
+
+/* Render one memo as a collapsible <details>. Reuses _detailsSection so the
+   chevron/title styling matches the dossier accordion. Per-memo sources go
+   in a small list at the end of the body. */
+function _renderMemoSection(m){
+  if(!m || !m.angle) return "";
+  var inner = _renderProseBlock(m.text||"");
+  if(Array.isArray(m.sources) && m.sources.length){
+    inner += '<ul class="pack-memo-sources">';
+    m.sources.forEach(function(s){
+      if(!s) return;
+      var lab = _escHtml(s.label||'');
+      if(s.url){
+        inner += '<li><a href="'+_escHtml(s.url)+'" target="_blank" rel="noopener noreferrer">'+lab+'</a></li>';
+      } else {
+        inner += '<li>'+lab+'</li>';
+      }
+    });
+    inner += '</ul>';
+  }
+  return _detailsSection(m.angle, inner);
+}
+
 /* Mobile bottom-sheet: tap the handle / tab bar / any panel content area to
    expand from peek; tap outside the dock to collapse. On desktop these are
    no-ops because the CSS class has no effect. */
@@ -1258,6 +1720,10 @@ document.getElementById("search").addEventListener("keydown",function(e){
 /* ---- global keyboard: Esc closes modal / collapses sheet / clears selection ---- */
 document.addEventListener("keydown",function(e){
   if(e.key!=="Escape") return;
+  // Modal precedence: evidence pack first (most recently-opened surface),
+  // then methodology, then the mobile sheet, then the country/region selection.
+  var pm=document.getElementById("packModal");
+  if(pm && !pm.hidden){ closePack(); return; }
   var m=document.getElementById("methodologyModal");
   if(m && !m.hidden){ closeMethodology(); return; }
   var dock=document.getElementById("dock");

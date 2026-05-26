@@ -124,6 +124,13 @@ window.PRESIDENTS["trump"].dossier["Russia"] = {
   magnitude: "material",
   region: "Europe/Eurasia",
   outcome: "War in Ukraine remained unresolved at the 24-month mark; inherited sanctions architecture largely preserved with selective new actions (EO 14329 secondary tariffs, Rosneft/Lukoil designations) while a leader-level bilateral channel was opened (Witkoff-Putin, Rubio-Lavrov, Alaska summit, Geneva U.S.-Ukraine draft framework); U.S. military aid to Ukraine fell sharply per secondary reporting; NATO burden shifted to Europe (Hague 5% pledge); New START expired without successor; talks reportedly stalled by April 2026.",
+  // Plain-English re-expression of the verdict for a general reader. Two
+  // to three sentences, no citations. Faithful to the technical fields
+  // (hurt · material · Accelerator · low-confidence · contested) — never
+  // changes a verdict, source, fact, or date. The dossier renderer
+  // prefers this over the citation-stripped first clause of `outcome`.
+  // PROOF DRAFT: the canonical pipeline regenerates this next.
+  verdictExplainer: "The U.S.-Russia relationship is still adversarial, but the U.S. now has less leverage and fewer allies sharing the cost than the inherited trajectory would have produced — military aid to Ukraine fell sharply, the New START arms-control framework expired without a successor, and the burden of backing Ukraine shifted to Europe. The administration opened a leader-level bilateral channel and preserved most of the inherited sanctions architecture, which serious analysts read as a partial offset. We score it low-confidence because the diplomatic channel's substantive outputs remain largely undisclosed and the process stalled before producing a settlement.",
   inherited: [
     "EO 14024 sanctions architecture and REPO Act framework with ~$300B G7 immobilized Russian sovereign assets [Treasury, 2024-12-10]",
     "~$66.5–66.9B cumulative U.S. security assistance to Ukraine since 2022 invasion [DoD, 2025-01-15]",
@@ -146,11 +153,29 @@ window.PRESIDENTS["trump"].dossier["Russia"] = {
   evidence: "adequate",
   contested: true,
   counterargument: "The strongest case for 'mixed' rather than 'hurt': Trump's engagement produced documented outputs absent under a counterfactual of pure disengagement — Marc Fogel's release, the Rubio-Lavrov consultation mechanism, an Alaska leader summit, and a U.S.-Ukraine Geneva framework the Ukrainian delegation said addressed its principal concerns. The inherited sanctions architecture was preserved (EO 14024 renewed April 2025) and selectively escalated with new instruments: EO 14329's 25% secondary tariff on Russian oil importers and the October 2025 Rosneft/Lukoil OFAC designations both carried explicit ceasefire demands. The ~98% aid reduction figure is from Foreign Affairs analysis, not primary DoD budget execution data, and the Hague 5% burden-shift is plausibly driven by European threat perception rather than U.S. abdication. On this reading, the administration maintained coercive tools, opened an unprecedented diplomatic channel, and kept Ukraine in a negotiating posture — a meaningful distinction from abandonment, and one that leaves the net effect genuinely contested given the pack's opacity on the bilateral channel's substantive outputs.",
+  // Each lever value upgrades from a plain technical string to a
+  // { text, summary } object: `text` is the existing technical prose
+  // verbatim (sourced, citation-bearing — used by the AI context and
+  // remains the audit copy), `summary` is a one-sentence plain-English
+  // re-expression for the dossier surface, no citations. PROOF DRAFT:
+  // the canonical pipeline regenerates the summaries next.
   levers: {
-    security: "Aid to Ukraine paused July 2025 then partially resumed; secondary reporting cites ~98% reduction by 2026; no U.S. troops for any post-war mission; submarine repositioning in August 2025 as signaling [DoD, 2025-08-07]",
-    leverage: "EO 14329 secondary tariffs and Rosneft/Lukoil designations explicitly tied to ceasefire demand, but offset by reported temporary oil-sanctions relief in 2026, multiple SDN removals (Usmanov-linked, year-end batches), and Gibson Dunn's observation that the pace of new Russia sanctions slowed in 2025 [OFAC, 2025-10-22]",
-    coalition: "Hegseth's Brussels speech and Hague 5% pledge shifted burden to Europe; publicly ruled out Ukrainian NATO membership before talks; UK/France designated as core security-guarantee providers [DoD, 2025-02-12]",
-    economicTech: "BIS Entity List additions and Aeroflot/UTair/Rossiya TDO renewals maintained; affiliate end-user controls expanded then suspended for one year (Russia-applicability not determinable from retrieved text); criminal export-control prosecutions continued [Federal Register, 2025-11-13]"
+    security: {
+      text: "Aid to Ukraine paused July 2025 then partially resumed; secondary reporting cites ~98% reduction by 2026; no U.S. troops for any post-war mission; submarine repositioning in August 2025 as signaling [DoD, 2025-08-07]",
+      summary: "U.S. military aid to Ukraine was paused and then sharply reduced, with no U.S. troops committed to any post-war mission and only symbolic force-posture signaling."
+    },
+    leverage: {
+      text: "EO 14329 secondary tariffs and Rosneft/Lukoil designations explicitly tied to ceasefire demand, but offset by reported temporary oil-sanctions relief in 2026, multiple SDN removals (Usmanov-linked, year-end batches), and Gibson Dunn's observation that the pace of new Russia sanctions slowed in 2025 [OFAC, 2025-10-22]",
+      summary: "New sanctions tied to ceasefire demands were paired with selective rollbacks and a slower overall sanctioning pace, leaving net coercive leverage roughly flat."
+    },
+    coalition: {
+      text: "Hegseth's Brussels speech and Hague 5% pledge shifted burden to Europe; publicly ruled out Ukrainian NATO membership before talks; UK/France designated as core security-guarantee providers [DoD, 2025-02-12]",
+      summary: "The defense burden was pushed onto European allies and Ukraine's NATO option was taken off the table before talks, with the UK and France named as the main security guarantors."
+    },
+    economicTech: {
+      text: "BIS Entity List additions and Aeroflot/UTair/Rossiya TDO renewals maintained; affiliate end-user controls expanded then suspended for one year (Russia-applicability not determinable from retrieved text); criminal export-control prosecutions continued [Federal Register, 2025-11-13]",
+      summary: "Export controls and aviation denial orders were broadly held in place, though one expanded affiliate restriction was suspended for a year."
+    }
   },
   durability: "Low to medium — the Geneva draft is unsigned and Russia is not documented as a party; the bilateral channel depends on personal Trump-Putin engagement; New START's expiration creates a structural arms-control vacuum; the aid drawdown and 2026 NDS Line of Effort 3 ('allies will take the lead' in Europe) are institutionalized in strategy documents that outlast any single negotiation.",
   opportunityCost: "Sustained engagement with Russia and the burden-shift to Europe freed U.S. munitions and political bandwidth toward the Indo-Pacific per the 2026 NDS, but consumed senior principal time (Rubio, Witkoff, Kushner) on an unresolved file, and foreclosed harder coercive options (Graham's S.1241 500% tariffs never advanced).",

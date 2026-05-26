@@ -432,8 +432,14 @@ function _buildLeversHtml(d){
   var rows="";
   if(!Array.isArray(d.levers) && typeof d.levers === "object"){
     LEVER_ORDER.forEach(function(id){
-      var prose=d.levers[id];
-      if(prose && prose!=="—"){
+      // Route through _dsvLeverProse so this helper handles BOTH the
+      // legacy plain-string shape AND the new {text, summary} object
+      // shape (the dossier visualization prefers .summary; this
+      // legacy/fallback path prefers .text so the bullet shows the
+      // technical version — but if a lever only has .summary, that
+      // wins too).
+      var prose = _dsvLeverProse(d.levers[id]);
+      if(prose){
         // _renderProseBlock paragraph-splits multi-sentence lever values so
         // they don't read as one run-on wall under the label.
         rows+='<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+
@@ -653,15 +659,34 @@ function _dsvMonYY(date){
   return mo + " '" + yy;
 }
 
-/* Resolve a single lever value to display prose. Accepts the legacy
-   plain-string shape (used today) AND an object shape with optional
-   {summary, text}, where `summary` (the plain-English version) wins.
+/* Resolve a single lever value to DISPLAY prose for the dossier
+   surface. Accepts the legacy plain-string shape AND an object shape
+   `{summary, text}`. For display, `summary` (citation-free, plain
+   English) wins — it's what a reader sees on the dossier.
+
    Renderer-only: lets a future author add a friendlier summary to any
    lever without changing the data file's required shape. */
 function _dsvLeverProse(v){
   if(typeof v === "string") return (v && v !== "—") ? v : "";
   if(v && typeof v === "object"){
     var s = v.summary || v.text || "";
+    if(typeof s === "string" && s && s !== "—") return s;
+  }
+  return "";
+}
+
+/* Resolve a single lever value to TECHNICAL/AUDIT prose — the
+   sourced, citation-bearing version. Used by the Ask AI context
+   builder so the model receives grounded, source-tagged text (with
+   the `[Source, date]` brackets intact) instead of the citation-free
+   plain-English summary. For the legacy string shape, the string IS
+   the technical text. For the object shape, prefer `.text`; falls
+   back to `.summary` only as a last resort so the AI context is
+   never empty when an entry has only authored a summary so far. */
+function _dsvLeverTechText(v){
+  if(typeof v === "string") return (v && v !== "—") ? v : "";
+  if(v && typeof v === "object"){
+    var s = v.text || v.summary || "";
     if(typeof s === "string" && s && s !== "—") return s;
   }
   return "";
@@ -2138,8 +2163,15 @@ function _entrySummary(d){
     var leverLines=[];
     if(!Array.isArray(d.levers) && typeof d.levers === "object"){
       LEVER_ORDER.forEach(function(id){
-        var v=d.levers[id];
-        if(v && v!=="—") leverLines.push(LEVER_LABEL[id]+" — "+v);
+        // AI grounding: use _dsvLeverTechText, NOT _dsvLeverProse.
+        // The model needs the sourced, citation-bearing `.text`
+        // (with [Source, date] brackets), not the citation-free
+        // plain-English `.summary` the dossier surface shows.
+        // For the legacy plain-string shape, the string is the
+        // technical text; for object-shape values, prefer .text and
+        // fall back to .summary only if .text is missing.
+        var v = _dsvLeverTechText(d.levers[id]);
+        if(v) leverLines.push(LEVER_LABEL[id]+" — "+v);
       });
     } else if(Array.isArray(d.levers)){
       d.levers.forEach(function(item){

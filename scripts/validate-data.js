@@ -57,7 +57,12 @@ const NEGATIVE_ROLES        = new Set(["Spoiler","Neglect"]);
 const CONDITIONAL_FIELDS = [
   "unscoredReason","levers","userDirected","decisionVsExecution","durability",
   "opportunityCost","escalationRisk","crossTheaterTradeoff","grandStrategyDispute",
-  "longHorizon","omissionNote","linkedPolicies"
+  "longHorizon","omissionNote","linkedPolicies",
+  // verdictExplainer: optional author-curated plain-English summary the
+  // dossier renderer prefers over the citation-stripped first clause of
+  // `outcome`. Pure presentation field; never affects validation of the
+  // technical fields above.
+  "verdictExplainer"
 ];
 const ALLOWED_FIELDS = new Set([...REQUIRED, ...CONDITIONAL_FIELDS]);
 
@@ -252,7 +257,13 @@ function validateEntry(key, e, ctx) {
     errors.push(`evidence "insufficient" requires effect "unscored"`);
   }
 
-  // levers — object keyed by lever ids, string values
+  // levers — object keyed by lever ids; each value is either:
+  //   • the legacy plain-string shape (technical text used today), OR
+  //   • an object { text: string, summary?: string } where `summary` is
+  //     an optional author-curated plain-English re-expression that
+  //     the dossier renderer prefers when present.
+  // The {sign, note} shape from the old v2 data is still disallowed —
+  // app.js never rendered it.
   if ("levers" in e && e.levers !== null && e.levers !== undefined) {
     if (Array.isArray(e.levers)) {
       errors.push(`levers must be a plain object (got the legacy array shape; app.js no longer renders it)`);
@@ -264,8 +275,18 @@ function validateEntry(key, e, ctx) {
           errors.push(`levers has unknown key "${k}" (allowed: ${[...LEVER_KEYS].join("|")})`);
         }
         const v = e.levers[k];
-        if (typeof v !== "string") {
-          errors.push(`levers.${k} must be a string (got ${Array.isArray(v) ? "array" : typeof v} — likely the {sign,note} shape, which doesn't render)`);
+        if (typeof v === "string") {
+          // legacy shape — fine
+        } else if (v && typeof v === "object" && !Array.isArray(v)) {
+          // new shape — require .text (string), optional .summary (string)
+          if (typeof v.text !== "string" || !v.text) {
+            errors.push(`levers.${k}.text must be a non-empty string (the technical lever prose)`);
+          }
+          if (v.summary !== undefined && typeof v.summary !== "string") {
+            errors.push(`levers.${k}.summary must be a string when present (plain-English re-expression of .text)`);
+          }
+        } else {
+          errors.push(`levers.${k} must be a string OR an object { text, summary? } (got ${Array.isArray(v) ? "array" : typeof v})`);
         }
       }
     }

@@ -879,13 +879,16 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   color:var(--ink3); font-weight:600; margin:0 0 8px;
 }
 
-/* -- B. The verdict ---------------------------------------------------- */
+/* -- B. The verdict ----------------------------------------------------
+   Headline carries the visual weight; the explainer is a short clipped
+   clause so the top doesn't dominate. Full verbatim outcome lives in
+   the footer's "Full causal argument" details. */
 .dsv-verdict{ margin:14px 0 18px; }
 .dsv-verdict-h{
   font-family:var(--font-display);
-  font-size:25px; line-height:1.22; font-weight:600;
-  letter-spacing:-0.012em; color:var(--ink);
-  margin:6px 0 6px;
+  font-size:28px; line-height:1.18; font-weight:600;
+  letter-spacing:-0.014em; color:var(--ink);
+  margin:6px 0 8px;
 }
 .dsv-verdict-h .dsv-verb-helped{ color:var(--good); }
 .dsv-verdict-h .dsv-verb-hurt  { color:var(--bad); }
@@ -895,80 +898,129 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
   text-transform:uppercase; color:var(--ink3); margin-top:8px;
 }
 .dsv-verdict-outcome{
-  margin:10px 0 0; font-size:13.6px; line-height:1.6; color:var(--ink2);
+  margin:12px 0 0; font-size:14px; line-height:1.55; color:var(--ink2);
 }
 
-/* -- C. Trajectory chart ----------------------------------------------- */
+/* -- C. Trajectory chart -----------------------------------------------
+   Big and bold. Inline endpoint labels remove the need for a separate
+   legend row. Bold start dot at Jan 2025; bold endpoint dots; arrow at
+   the actual endpoint; large mono magnitude callout. */
 .dsv-traj{
   background:var(--chip);
-  border-radius:12px;
-  padding:12px 14px 10px;
+  border-radius:14px;
+  padding:18px 18px 16px;
 }
 .dsv-traj svg{ width:100%; height:auto; display:block; }
-.dsv-traj-axis,
-.dsv-traj-tick{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-                font-size:10px; fill:var(--ink3); }
-.dsv-traj-mid  { stroke:var(--ink3); stroke-width:0.6; opacity:.35; stroke-dasharray:2 3; }
-.dsv-traj-inh  { fill:none; stroke:var(--ink3); stroke-width:1.6; stroke-dasharray:5 5; }
-.dsv-traj-inh-dot{ fill:var(--panel); stroke:var(--ink3); stroke-width:1.5; }
+.dsv-traj-axis{
+  font-family:var(--font-body);
+  font-size:13px; font-weight:600;
+  fill:var(--ink2);
+}
+.dsv-traj-axis-top{ /* "stronger U.S. position" — sits above the path zone */ }
+.dsv-traj-axis-bot{ /* "weaker U.S. position"   — sits below the path zone */ }
+.dsv-traj-tick{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:11px; fill:var(--ink3);
+}
+.dsv-traj-mid     { stroke:var(--ink3); stroke-width:0.7; opacity:.35; stroke-dasharray:2 3; }
+.dsv-traj-start-dot{ fill:var(--ink2); }
+.dsv-traj-inh     { fill:none; stroke:var(--ink3); stroke-width:1.8; stroke-dasharray:6 6; }
+.dsv-traj-inh-dot { fill:var(--panel); stroke:var(--ink3); stroke-width:1.8; }
+.dsv-traj-act     { fill:none; stroke-width:3; }
 .dsv-traj-act-helped{ stroke:var(--good); }
 .dsv-traj-act-hurt  { stroke:var(--bad); }
 .dsv-traj-act-mixed { stroke:var(--ink3); }
-.dsv-traj-act       { fill:none; stroke-width:2; }
+.dsv-traj-act-dot         { stroke:var(--panel); stroke-width:1.8; }
 .dsv-traj-act-dot.dsv-traj-act-helped{ fill:var(--good); }
 .dsv-traj-act-dot.dsv-traj-act-hurt  { fill:var(--bad); }
 .dsv-traj-act-dot.dsv-traj-act-mixed { fill:var(--ink3); }
-.dsv-traj-act-dot   { stroke:var(--panel); stroke-width:1.5; }
+.dsv-traj-arrow.dsv-traj-act-helped{ fill:var(--good); }
+.dsv-traj-arrow.dsv-traj-act-hurt  { fill:var(--bad); }
+.dsv-traj-end-label{
+  font-family:var(--font-body);
+  font-size:11.5px; font-style:italic;
+  fill:var(--ink2);
+}
+.dsv-traj-end-inh{ fill:var(--ink3); }
+.dsv-traj-end-act{ font-style:normal; font-weight:600; }
+.dsv-traj-end-act.dsv-traj-act-helped{ fill:var(--good); }
+.dsv-traj-end-act.dsv-traj-act-hurt  { fill:var(--bad); }
+.dsv-traj-end-act.dsv-traj-act-mixed { fill:var(--ink2); }
 .dsv-traj-callout{
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size:10.5px; font-weight:600;
+  font-size:12.5px; font-weight:600;
 }
 .dsv-traj-callout.dsv-traj-act-helped{ fill:var(--good); }
 .dsv-traj-callout.dsv-traj-act-hurt  { fill:var(--bad); }
 .dsv-traj-callout.dsv-traj-act-mixed { fill:var(--ink2); }
-.dsv-traj-legend{
-  display:flex; flex-wrap:wrap; gap:14px;
-  font-size:11px; color:var(--ink3); margin-top:6px;
-}
-.dsv-traj-legend .swdash,
-.dsv-traj-legend .swsolid{ display:inline-block; width:18px; height:2px; vertical-align:middle;
-  margin-right:6px; }
-.dsv-traj-legend .swdash{ border-top:2px dashed var(--ink3); height:0; }
-.dsv-traj-legend .swsolid.helped{ background:var(--good); }
-.dsv-traj-legend .swsolid.hurt  { background:var(--bad); }
-.dsv-traj-legend .swsolid.mixed { background:var(--ink3); }
 
-/* -- D. Timeline -------------------------------------------------------- */
-.dsv-tl{ list-style:none; margin:6px 0 0; padding:0; position:relative; }
-.dsv-tl > li{
-  display:flex; gap:12px; padding:8px 0 10px; align-items:flex-start;
-  position:relative;
+/* -- D1. Timeline strip + legend ---------------------------------------
+   Horizontal axis shares the same x-window (Jan 2025 → asOf) as the C
+   chart so the two surfaces stack with aligned dates. Sign-colored dots
+   placed above-line (strengthened), below-line (weakened), or on-line
+   (mixed). */
+.dsv-tl-strip{
+  background:var(--chip);
+  border-radius:14px;
+  padding:6px 14px 2px;
+  margin-top:6px;
 }
-.dsv-tl > li + li{ border-top:1px solid var(--line2); }
-.dsv-tl-date{
-  width:84px; flex:none; padding-top:3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size:11px; color:var(--ink3);
+.dsv-tl-strip svg{ width:100%; height:auto; display:block; }
+.dsv-tl-strip-axis{ stroke:var(--ink3); stroke-width:1; opacity:.45; }
+.dsv-tl-strip-dot.sign-weakened    { fill:var(--bad); }
+.dsv-tl-strip-dot.sign-strengthened{ fill:var(--good); }
+.dsv-tl-strip-dot.sign-mixed       { fill:var(--s-neutral); }
+.dsv-tl-strip-dot{ stroke:var(--panel); stroke-width:1.4; cursor:default; }
+
+.dsv-tl-legend{
+  display:flex; flex-wrap:wrap; gap:14px;
+  font-size:11.5px; color:var(--ink3);
+  margin:8px 0 14px;
 }
-/* Dot column: the dot itself + a dotted vertical "rail" rendered as a
-   pseudo-element so consecutive events read as a connected timeline. */
-.dsv-tl-dotcol{ position:relative; flex:none; width:14px; padding-top:5px; }
+.dsv-tl-legpill{
+  display:inline-flex; align-items:center; gap:6px;
+}
+
+/* -- D2. Event list ----------------------------------------------------
+   One row per event: filled sign-colored disc, mono date column "MON 'YY",
+   bold label, em-dash, description (prefers event.blurb, falls back to
+   event.detail). No connector rail — the strip above is the visual
+   timeline; the list is the readable enumeration. */
+.dsv-tl-list{ list-style:none; margin:0; padding:0; }
+.dsv-tl-list > li{
+  display:flex; gap:12px; padding:9px 0; align-items:flex-start;
+}
+.dsv-tl-list > li + li{ border-top:1px solid var(--line2); }
+
+/* DOT — used both inline in the legend and as the leading marker on each
+   list row. The bug fix is `display:inline-block` (was implicit inline,
+   which suppresses width/height + the background paint), and the panel-
+   color border is replaced with a faint outer ring of var(--line) so the
+   sign-colored fill is what the eye sees. */
 .dsv-tl-dot{
-  width:10px; height:10px; border-radius:50%;
-  border:1.5px solid var(--panel); box-shadow:0 0 0 1px var(--line);
-  position:relative; z-index:1;
+  display:inline-block;
+  width:11px; height:11px; border-radius:50%;
+  flex:none; margin-top:5px;
+  box-shadow:0 0 0 1px var(--line);
 }
 .dsv-tl-dot.sign-weakened    { background:var(--bad); }
 .dsv-tl-dot.sign-strengthened{ background:var(--good); }
 .dsv-tl-dot.sign-mixed       { background:var(--s-neutral); }
-.dsv-tl > li:not(:last-child) .dsv-tl-dotcol:after{
-  content:""; position:absolute; left:6px; top:18px; bottom:-10px;
-  border-left:2px dotted var(--line); z-index:0;
+
+.dsv-tl-date{
+  width:78px; flex:none; padding-top:3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:11px; font-weight:600; letter-spacing:.04em;
+  color:var(--ink3); text-transform:uppercase;
 }
-.dsv-tl-text{ flex:1; min-width:0; }
-.dsv-tl-label{ font-weight:600; color:var(--ink); font-size:13.5px; line-height:1.4; }
-.dsv-tl-detail{ font-size:12.8px; color:var(--ink2); line-height:1.55; margin-top:3px; }
-.dsv-tl-src{ font-size:11.5px; color:var(--ink3); margin-top:4px; }
+.dsv-tl-text{ flex:1; min-width:0; font-size:13.5px; line-height:1.5; color:var(--ink2); }
+.dsv-tl-label{ font-weight:600; color:var(--ink); }
+.dsv-tl-dash { color:var(--ink3); margin:0 4px; }
+.dsv-tl-body { color:var(--ink2); }
+.dsv-tl-src{
+  display:block;
+  font-size:11.5px; color:var(--ink3); margin-top:4px;
+}
 .dsv-tl-src a{ color:var(--accent); text-decoration:none; }
 .dsv-tl-src a:hover{ text-decoration:underline; }
 
@@ -987,9 +1039,10 @@ ul.pts li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6p
 
 /* -- Mobile tightening --------------------------------------------------- */
 @media (max-width:720px){
-  .dsv-verdict-h{ font-size:21px; }
-  .dsv-tl-date{ width:70px; font-size:10.5px; }
-  .dsv-traj{ padding:10px 10px 8px; }
+  .dsv-verdict-h{ font-size:23px; }
+  .dsv-tl-date{ width:62px; font-size:10.5px; }
+  .dsv-traj{ padding:14px 12px 10px; }
+  .dsv-tl-strip{ padding:4px 10px 2px; }
 }
 </style>
 </head>

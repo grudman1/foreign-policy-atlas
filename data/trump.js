@@ -287,8 +287,8 @@ window.PRESIDENTS["trump"].dossier["Canada"] = {
    Pipeline: analyst=Claude (pack-only) · red-team=GPT · editor=Claude · tiebreaker auto-adjudicated. 2026-05-25. */
 window.PRESIDENTS["trump"].dossier["Germany"] = {
   state: "strained",
-  effect: "mixed",
-  magnitude: null,
+  effect: "hurt",
+  magnitude: "material",
   region: "Europe",
   outcome: "Germany dramatically increased defense spending (pledging 5% of GDP by 2035, 3.5% core by 2029), amended its constitutional debt brake to unlock €533B in infrastructure and uncapped defense spending, activated a permanent armored brigade in Lithuania, and replaced the U.S. as Ukraine's principal military backer — outcomes plausibly driven more by German electoral politics and hedging against U.S. unreliability than by Trump pressure — while bilateral ties frayed over tariffs (including a Greenland-linked coercion episode), Iran strategy, an NSS critical of Europe, and a May 2026 announcement to withdraw ~5,000 U.S. troops from Germany.",
   inherited: [
@@ -309,7 +309,7 @@ window.PRESIDENTS["trump"].dossier["Germany"] = {
     "The November 2025 National Security Strategy reoriented U.S. policy with 'a pointed critique of the European project' and cast the U.S. as a 'neutral arbiter' on Ukraine, unsettling German planners [Atlantic Council, 2025-12-15].",
     "Merz publicly stated his 'absolute priority' was to strengthen Europe to achieve greater independence from the U.S., indicating German rearmament reflects hedging against Washington rather than a strengthened bilateral relationship [Congressional Research Service, 2025-03-19]."
   ],
-  role: "Accelerator",
+  role: "Spoiler",
   confidence: "medium",
   evidence: "adequate",
   contested: true,
@@ -343,8 +343,8 @@ window.PRESIDENTS["trump"].dossier["Germany"] = {
    Pipeline: analyst=Claude (pack-only) · red-team=GPT · editor=Claude · tiebreaker auto-adjudicated. 2026-05-25. */
 window.PRESIDENTS["trump"].dossier["France"] = {
   state: "aligned",
-  effect: "mixed",
-  magnitude: null,
+  effect: "hurt",
+  magnitude: "material",
   region: "Europe",
   outcome: "Against an inherited high-convergence baseline of 'extraordinary' U.S.–France cooperation, the administration sustained leader- and ministerial-level engagement on Ukraine, Iran snapback, and NATO but added discretionary friction — EU-level tariffs, OFAC designation of a French ICC judge, opposition to French recognition of Palestine, withdrawal from 66 international organizations, and no France-specific bilateral deliverable — prompting Macron to publicly call for 'less dependency on the United States' and to deepen UK-France nuclear hedging via Northwood.",
   inherited: "France entered the term as the United States' 'oldest treaty Ally,' fourth-largest NATO budget contributor, co-chair of the Ukraine artillery coalition, and partner across 'extraordinary convergence' on Ukraine, the Middle East, Indo-Pacific, and civil nuclear energy, with intensive end-of-administration engagement including Blinken's January 2025 Paris visit and Légion d'honneur.",
@@ -360,7 +360,7 @@ window.PRESIDENTS["trump"].dossier["France"] = {
     "The United States 'welcomed' the E3-initiated UNSCR 2231 snapback on Iran on August 1, 2025 — supportive convergence, though the initiative was driven by France, Germany, and the UK [State Department, 2025-08-01].",
     "At The Hague, NATO Allies including France committed to 5% of GDP on defence by 2035, an outcome the White House credited to Trump but which also reflects long-running European rearmament pressures [NATO, 2025-06-25]."
   ],
-  role: "Architect",
+  role: "Accelerator",
   confidence: "low",
   evidence: "adequate",
   contested: true,

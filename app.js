@@ -557,46 +557,220 @@ function _dsvHeader(d, k){
   return html;
 }
 
-/* ---- B. The verdict ---------------------------------------------------
-   MECHANICAL TEMPLATE — generates no new prose. The headline composes
-   {Subject} {adverb} {verb} "the U.S. position toward {Country}, measured
-   against the trajectory they inherited." The first sentence of the
-   existing `outcome` field renders beneath it verbatim.
+/* ---- Renderer-side text helpers (read-only on data) -------------------
+   These helpers shape existing dossier prose into the visual layer's
+   smaller surfaces. They strip noise (inline source brackets) and
+   shorten (clip at the first hard punctuation) — they never invent
+   text. Each pathway prefers an optional authored field if present and
+   falls back to the existing technical field, so adding an author-
+   curated version later flips the surface automatically without any
+   code change. */
 
-   The effect attaches to "the U.S. position toward {Country}" — never to
-   the bare country — because hurt means the U.S. position weakened, not
-   that the country itself was weakened. Omitted entirely for `unscored`
-   and for the US home cell. */
-var DSV_VERBS   = { helped: "strengthened", hurt: "weakened" };
-var DSV_ADVERBS = { modest: "modestly",  material: "materially", major: "sharply" };
+/* Remove inline [Source, 2025-01-12]-style citation tokens from prose so
+   the top-of-dossier summary doesn't carry footnote chatter. Collapses
+   the double space the deletion leaves behind. */
+function _stripBracketedSources(s){
+  if(typeof s !== "string") return "";
+  return s.replace(/\[[^\]]*\]/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
+/* Clip a string at the EARLIER of the first '.' or first ';' that
+   actually terminates a clause — abstract first-clause for the at-a-
+   glance summary. Russia's outcome runs as one semicolon-delimited
+   paragraph; the sentence-boundary regex used elsewhere wouldn't trim
+   it, hence the simpler stop-at-first-hard-punctuation rule.
+   ';' is always a stop. '.' is only a stop when it's followed by
+   whitespace (or end-of-string) — i.e. a real sentence terminator, not
+   an internal abbreviation dot like "U.S.-Canada" or "i.e." or "..."
+   (where each '.' is followed by another non-space character). Strips
+   inline citation brackets after clipping. */
+function _dsvShortFirstClause(text){
+  if(typeof text !== "string" || !text) return "";
+  var n = text.length, cut = -1;
+  function isUpper(ch){ return ch >= 'A' && ch <= 'Z'; }
+  for(var i = 0; i < n; i++){
+    var c = text[i];
+    if(c === ';'){ cut = i; break; }
+    if(c === '.'){
+      var next = (i + 1 < n) ? text[i+1] : '';
+      // A '.' followed by a non-space (letter / digit / '.') is an
+      // INTERNAL abbreviation dot — e.g. the dot AFTER U in "U.S." —
+      // skip it.
+      if(next !== '' && !/\s/.test(next)) continue;
+      // A '.' followed by space/end could either be a real sentence
+      // terminator OR the TRAILING dot of an initialism that happens
+      // to sit at the end of a clause (e.g. "...the U.S. as ..."). If
+      // the previous two chars match "<UPPER>.<UPPER>", treat this as
+      // the trailing dot of an initialism and keep scanning.
+      if(i >= 2 && text[i-2] === '.' && isUpper(text[i-1])){
+        continue;
+      }
+      cut = i; break;
+    }
+  }
+  var head = (cut >= 0) ? text.slice(0, cut) : text;
+  return _stripBracketedSources(head);
+}
+
+/* Parse a pack timeline date ("YYYY-MM" or "YYYY-MM-DD") to a real-time
+   ms value. Bare "YYYY-MM" anchors to the 15th of the month (midpoint)
+   so events sit cleanly between month ticks on the strip. */
+function _dsvDateToTimeMs(date){
+  if(typeof date !== "string") return NaN;
+  var m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(date);
+  if(!m) return NaN;
+  var y = +m[1], mo = +m[2] - 1, d = m[3] ? +m[3] : 15;
+  return Date.UTC(y, mo, d);
+}
+
+/* Best-effort parser for the president-level asOf string. Accepts
+   "YYYY-MM[-DD]" verbatim, "Month YYYY" (e.g. "May 2026"), and the
+   common "May 2026 (projected timeline)" form. Falls back to NaN. */
+var _DSV_MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function _dsvAsOfToTimeMs(asOf){
+  if(typeof asOf !== "string") return NaN;
+  var ms = _dsvDateToTimeMs(asOf);
+  if(!isNaN(ms)) return ms;
+  // "May 2026", "May 2026 (projected timeline)", "May 2026 - projected"
+  var m = /([A-Za-z]+)\s+(\d{4})/.exec(asOf);
+  if(m){
+    var key = m[1].slice(0,3).toLowerCase();
+    if(key in _DSV_MONTHS){
+      return Date.UTC(+m[2], _DSV_MONTHS[key], 15);
+    }
+  }
+  return NaN;
+}
+
+/* Format a pack date as MON 'YY (e.g. "2025-02" → "FEB '25"). */
+var _DSV_MONLABEL = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+function _dsvMonYY(date){
+  var ms = _dsvDateToTimeMs(date);
+  if(isNaN(ms)) return _escHtml(date||"");
+  var dt = new Date(ms);
+  var mo = _DSV_MONLABEL[dt.getUTCMonth()];
+  var yy = String(dt.getUTCFullYear()).slice(-2);
+  return mo + " '" + yy;
+}
+
+/* Resolve a single lever value to display prose. Accepts the legacy
+   plain-string shape (used today) AND an object shape with optional
+   {summary, text}, where `summary` (the plain-English version) wins.
+   Renderer-only: lets a future author add a friendlier summary to any
+   lever without changing the data file's required shape. */
+function _dsvLeverProse(v){
+  if(typeof v === "string") return (v && v !== "—") ? v : "";
+  if(v && typeof v === "object"){
+    var s = v.summary || v.text || "";
+    if(typeof s === "string" && s && s !== "—") return s;
+  }
+  return "";
+}
+
+/* ---- B. The verdict ---------------------------------------------------
+   MECHANICAL TEMPLATE — generates no new prose; routes on role+effect.
+   The first sentence of the existing `outcome` field renders beneath
+   the headline verbatim.
+
+   Two templates, chosen by role:
+
+   1. Causal template (default) — for roles that name the president as
+      a causal agent: Architect, Accelerator, Closer, Stabilizer, Active
+      Stabilizer, Spoiler, Neglect. The effect attaches to "the U.S.
+      position toward {Country}" — never to the bare country — because
+      hurt means the U.S. position weakened, not that the country
+      itself was weakened. Followed by an uppercase mono clause
+      "measured against the trajectory they inherited."
+
+        helped/hurt: "{Subject} {adverb} {strengthened|weakened} the
+                     U.S. position toward {Country}."
+        mixed:       "{Subject} had a mixed effect on the U.S. position
+                     toward {Country}."
+
+   2. Non-causal template — for Inheritor and Bystander. These roles
+      explicitly assert the president did NOT cause the effect, so the
+      headline must not cast them as the causal agent and the inherited-
+      trajectory clause is dropped (the causal counterfactual is moot
+      when the role itself denies attribution).
+
+        helped/hurt: "Under {Subject}, the U.S. position toward
+                     {Country} is {adverb} {stronger|weaker} — an
+                     inherited, structural shift rather than this
+                     president's doing."
+        mixed:       "Under {Subject}, the U.S. position toward
+                     {Country} is mixed — shaped by inherited,
+                     structural forces rather than this president's
+                     action."
+
+   Omitted entirely for `unscored` and for the US home cell. */
+var DSV_VERBS     = { helped: "strengthened", hurt: "weakened" };
+var DSV_ADJS      = { helped: "stronger",     hurt: "weaker"   };
+var DSV_ADVERBS   = { modest: "modestly",  material: "materially", major: "sharply" };
+var DSV_NONCAUSAL_ROLES = { "Inheritor": 1, "Bystander": 1 };
 function _dsvVerdict(d, k, P){
   if(d.state === "us") return "";
   var eff = effectOf(d);
   if(eff === "unscored") return "";
+  if(eff !== "helped" && eff !== "hurt" && eff !== "mixed") return "";
 
   var subject = P.subject || "This president";
   var country = _escHtml(k);
-  var head;
-  if(eff === "mixed"){
-    head = _escHtml(subject)+' had a mixed effect on the U.S. position toward '+country+'.';
-  } else if(eff === "helped" || eff === "hurt"){
-    var mag = magnitudeOf(d);
-    var adv = mag && DSV_ADVERBS[mag] ? DSV_ADVERBS[mag]+' ' : '';
-    var verbCls = (eff === "helped") ? "dsv-verb-helped" : "dsv-verb-hurt";
-    head = _escHtml(subject)+' '+adv+'<span class="'+verbCls+'">'+DSV_VERBS[eff]+'</span>'+
-           ' the U.S. position toward '+country+'.';
+  var mag     = magnitudeOf(d);
+  var adv     = (mag && DSV_ADVERBS[mag]) ? DSV_ADVERBS[mag]+' ' : '';
+  var nonCausal = !!DSV_NONCAUSAL_ROLES[d.role];
+
+  var head, clauseHtml;
+  if(nonCausal){
+    // Non-causal: the state of the position is described; the president
+    // is the time frame ("Under X"), not the agent. The "rather than this
+    // president's doing/action" tail makes the role read explicit.
+    if(eff === "mixed"){
+      head = 'Under '+_escHtml(subject)+', the U.S. position toward '+country+
+             ' is mixed &mdash; shaped by inherited, structural forces rather than this president\'s action.';
+    } else {
+      var adjCls = (eff === "helped") ? "dsv-verb-helped" : "dsv-verb-hurt";
+      head = 'Under '+_escHtml(subject)+', the U.S. position toward '+country+
+             ' is '+adv+'<span class="'+adjCls+'">'+DSV_ADJS[eff]+'</span>'+
+             ' &mdash; an inherited, structural shift rather than this president\'s doing.';
+    }
+    // No inherited-trajectory clause — the role itself denies causal attribution.
+    clauseHtml = '';
   } else {
-    return "";  // any unrecognized effect → bail out gracefully
+    // Causal: the president is the verb's subject.
+    if(eff === "mixed"){
+      head = _escHtml(subject)+' had a mixed effect on the U.S. position toward '+country+'.';
+    } else {
+      var verbCls = (eff === "helped") ? "dsv-verb-helped" : "dsv-verb-hurt";
+      head = _escHtml(subject)+' '+adv+'<span class="'+verbCls+'">'+DSV_VERBS[eff]+'</span>'+
+             ' the U.S. position toward '+country+'.';
+    }
+    clauseHtml = '<span class="dsv-verdict-clause">measured against the trajectory they inherited</span>';
   }
 
-  var outFull  = (d.outcome && d.outcome !== "—") ? d.outcome : "";
-  var outFirst = _splitOutcomeHeadline(outFull).first;
-  var outHtml  = outFirst ? '<p class="dsv-verdict-outcome">'+outFirst+'</p>' : '';
+  // Explainer paragraph precedence:
+  //   1. optional d.verdictExplainer (author-curated plain English)
+  //   2. else: outcome clipped at the EARLIER of the first '.' or first
+  //      ';', citation tokens stripped — short enough not to dominate
+  //      the top of the panel. Russia's outcome runs as a single
+  //      semicolon-delimited paragraph, so the sentence-boundary
+  //      heuristic alone would leave the whole paragraph here.
+  //   3. else: nothing.
+  // The full verbatim outcome remains accessible in the footer's
+  // "Full causal argument" <details> — moved out of the verdict block
+  // so it doesn't dominate the top.
+  var outFull = (d.outcome && d.outcome !== "—") ? d.outcome : "";
+  var summary;
+  if(typeof d.verdictExplainer === "string" && d.verdictExplainer.trim()){
+    summary = _escHtml(d.verdictExplainer.trim());
+  } else {
+    summary = _escHtml(_dsvShortFirstClause(outFull));
+  }
+  var summaryHtml = summary ? '<p class="dsv-verdict-outcome">'+summary+'</p>' : '';
 
   return '<section class="dsv-section dsv-verdict">'+
            '<h3 class="dsv-verdict-h">'+head+'</h3>'+
-           '<span class="dsv-verdict-clause">measured against the trajectory they inherited</span>'+
-           outHtml+
+           clauseHtml+
+           summaryHtml+
          '</section>';
 }
 
@@ -636,8 +810,16 @@ function _dsvTrajectory(d, pack){
     actualEnd = (eff === "helped" ? w : -w);
   }
 
-  // SVG geometry
-  var W = 640, H = 170, startX = 60, endX = 560, midY = 95, range = 55;
+  // SVG geometry — taller + wider canvas so endpoint labels + arrow have
+  // breathing room. The chart is responsive (width:100%, height:auto via
+  // SVG aspect ratio); viewBox is in design pixels.
+  //
+  // endX is intentionally pulled well left of the viewBox right edge so
+  // the endpoint labels ("inherited path", "where this president took
+  // it") and the magnitude callout have ~200px of clear space to render
+  // without being clipped. The D1 strip below mirrors this same endX so
+  // the two surfaces share an aligned x-axis.
+  var W = 720, H = 240, startX = 70, endX = 520, midY = 130, range = 80;
   var yFor = function(v){ return midY - v * range; };
   var yInh = yFor(inheritedEnd), yAct = yFor(actualEnd);
   var midX = (startX + endX) / 2;
@@ -647,65 +829,173 @@ function _dsvTrajectory(d, pack){
   var pathAct = 'M '+startX+' '+midY+' Q '+midX+' '+((midY + yAct)/2)+' '+endX+' '+yAct;
   var actCls  = 'dsv-traj-act-'+eff;
 
-  // Callout — magnitude word for helped/hurt, "mixed" for mixed
+  // Magnitude callout — magnitude adjective for helped/hurt, "mixed" for mixed
   var callout;
-  if(eff === "mixed"){ callout = 'mixed'; }
-  else {
+  if(eff === "mixed"){
+    callout = 'mixed';
+  } else {
     var magName = MAGNITUDE_NAME[magnitudeOf(d)] || '';
-    var sign    = (eff === "helped") ? '+' : '−';
     var stem    = (eff === "helped") ? 'stronger' : 'weaker';
-    callout = sign + (magName ? magName+' ' : '') + stem;
+    callout = (magName ? magName + ' ' : '') + stem;
   }
-  // Callout y placement: above the dot when it's in the upper half, below
-  // when lower, so the label never overlaps the path.
-  var calloutY = yAct + (yAct <= midY ? -12 : 18);
   var asOfLabel = _escHtml(((window.PRESIDENTS[CURRENT]||{}).asOf) || "today");
 
-  // Legend swatches use the effect-keyed solid classes (no inline color).
-  var solidLegendCls = (eff === "helped" || eff === "hurt" || eff === "mixed") ? eff : "mixed";
+  // Endpoint labels go to the right of each dot; clamp y so they don't
+  // crash into each other when the paths converge.
+  var dotR        = 8;
+  var labelOffset = 14;            // px gap between dot and label
+  var labelX      = endX + labelOffset;
+  // If the two endpoint dots are within 18 px vertically, nudge the
+  // inherited label up and the actual label down so they don't overlap.
+  var converged   = Math.abs(yInh - yAct) < 18;
+  var inhLabelY   = converged ? Math.min(yInh, yAct) - 8 : yInh + 4;
+  var actLabelY   = converged ? Math.max(yInh, yAct) + 12 : yAct + 4;
+  // Callout sits one line below the "where this president took it" label.
+  var calloutY    = actLabelY + 22;
+
+  // Arrow chevron just to the right of the actual endpoint, pointing in
+  // the direction the actual path diverged from the baseline. Hidden for
+  // mixed (no direction).
+  var arrowHtml = '';
+  if(eff === "helped" || eff === "hurt"){
+    var arrCx = endX + 1, arrCy = yAct;
+    var dir   = (actualEnd >= 0) ? -1 : 1;     // -1 = up arrow, +1 = down
+    var arrH  = 18;                            // vertical reach of the head
+    var arrW  = 11;                            // half-width
+    // Triangle pointing along `dir` from (arrCx, arrCy + 6*dir) to
+    // (arrCx, arrCy + (6+arrH)*dir), with side vertices at ±arrW.
+    var tipY  = arrCy + (6 + arrH) * dir;
+    var baseY = arrCy + 6 * dir;
+    var pts = arrCx+','+tipY+' '+(arrCx-arrW)+','+baseY+' '+(arrCx+arrW)+','+baseY;
+    arrowHtml = '<polygon class="dsv-traj-arrow '+actCls+'" points="'+pts+'"/>';
+  }
 
   var svg = ''
     + '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Trajectory chart: inherited vs. actual U.S. position">'
+    // Bold axis headings — placed outside the path zone so they read big.
+    +   '<text class="dsv-traj-axis dsv-traj-axis-top" x="'+startX+'" y="22" text-anchor="start">stronger U.S. position</text>'
+    +   '<text class="dsv-traj-axis dsv-traj-axis-bot" x="'+startX+'" y="'+(H-12)+'" text-anchor="start">weaker U.S. position</text>'
+    // Mid baseline (dashed, low-contrast)
     +   '<line class="dsv-traj-mid" x1="'+startX+'" y1="'+midY+'" x2="'+endX+'" y2="'+midY+'"/>'
-    +   '<text class="dsv-traj-axis" x="'+startX+'" y="34" text-anchor="start">stronger U.S. position</text>'
-    +   '<text class="dsv-traj-axis" x="'+startX+'" y="160" text-anchor="start">weaker U.S. position</text>'
-    +   '<text class="dsv-traj-tick" x="'+startX+'" y="'+(midY+24)+'" text-anchor="start">Jan 2025</text>'
-    +   '<text class="dsv-traj-tick" x="'+endX+'" y="'+(midY+24)+'" text-anchor="end">'+asOfLabel+'</text>'
+    // Date ticks
+    +   '<text class="dsv-traj-tick" x="'+startX+'" y="'+(midY+30)+'" text-anchor="start">Jan 2025</text>'
+    +   '<text class="dsv-traj-tick" x="'+endX+'" y="'+(midY+30)+'" text-anchor="end">'+asOfLabel+'</text>'
+    // Bold start dot at Jan 2025 origin
+    +   '<circle class="dsv-traj-start-dot" cx="'+startX+'" cy="'+midY+'" r="7"/>'
+    // Paths
     +   '<path class="dsv-traj-inh" d="'+pathInh+'"/>'
     +   '<path class="dsv-traj-act '+actCls+'" d="'+pathAct+'"/>'
-    +   '<circle class="dsv-traj-inh-dot" cx="'+endX+'" cy="'+yInh+'" r="6"/>'
-    +   '<circle class="dsv-traj-act-dot '+actCls+'" cx="'+endX+'" cy="'+yAct+'" r="6.5"/>'
-    +   '<text class="dsv-traj-callout '+actCls+'" x="'+(endX-10)+'" y="'+calloutY+'" text-anchor="end">'+_escHtml(callout)+'</text>'
+    // Inherited endpoint: hollow dot + inline label
+    +   '<circle class="dsv-traj-inh-dot" cx="'+endX+'" cy="'+yInh+'" r="'+dotR+'"/>'
+    +   '<text class="dsv-traj-end-label dsv-traj-end-inh" x="'+labelX+'" y="'+inhLabelY+'" text-anchor="start">inherited path</text>'
+    // Actual endpoint: filled dot + arrow + inline label
+    +   '<circle class="dsv-traj-act-dot '+actCls+'" cx="'+endX+'" cy="'+yAct+'" r="'+(dotR+0.5)+'"/>'
+    +   arrowHtml
+    +   '<text class="dsv-traj-end-label dsv-traj-end-act '+actCls+'" x="'+labelX+'" y="'+actLabelY+'" text-anchor="start">where this president took it</text>'
+    // Magnitude callout (big mono)
+    +   '<text class="dsv-traj-callout '+actCls+'" x="'+labelX+'" y="'+calloutY+'" text-anchor="start">'+_escHtml(callout)+'</text>'
     + '</svg>';
-
-  var legend = '<div class="dsv-traj-legend">'
-    +   '<span><span class="swdash"></span>inherited trajectory</span>'
-    +   '<span><span class="swsolid '+solidLegendCls+'"></span>actual under this president</span>'
-    + '</div>';
 
   return '<section class="dsv-section">'+
            '<p class="dsv-eyebrow">Compared to what?</p>'+
-           '<div class="dsv-traj">'+svg+legend+'</div>'+
+           '<div class="dsv-traj">'+svg+'</div>'+
          '</section>';
 }
 
 /* ---- D. Timeline ------------------------------------------------------
    READ-ONLY from window.PACKS[CURRENT][k].timeline — never parses
-   points[]. Dots colored by sign (weakened=--bad, strengthened=--good,
-   mixed=--s-neutral). When no pack or empty timeline, return "" so the
-   23 currently pack-less entries simply hide this section.
+   points[]. Two parts:
 
-   SINGLE-SOURCE RULE: this section and the pack modal both read the SAME
-   timeline[] array, so a sign fix in data/packs/... propagates to both
-   surfaces with no code change. */
+     D1  horizontal strip    one time axis, Jan 2025 → P.asOf (shares
+                             the SAME x-window as the C trajectory
+                             chart so they line up visually). Sign-
+                             colored dots positioned by date and above/
+                             below the line by sign (strengthened
+                             above, weakened below, mixed on-line).
+                             Neutral legend below: only the three
+                             sign labels — no per-entry glosses.
+     D2  event list          mono date "MON 'YY", sign-colored disc,
+                             bold label — em-dash — description.
+                             Description prefers optional event.blurb
+                             else falls back to event.detail.
+
+   SINGLE-SOURCE RULE: both D1 and D2 — and the evidence-pack modal —
+   read the SAME timeline[] array. A sign fix in data/packs/... shows
+   up everywhere with no code change. */
 var DSV_SIGNS = { weakened: 1, strengthened: 1, mixed: 1 };
+var DSV_SIGN_LABEL = { weakened:"weakened", strengthened:"strengthened", mixed:"mixed" };
 function _dsvTimeline(pack){
   if(!pack || !Array.isArray(pack.timeline) || !pack.timeline.length) return "";
 
+  // -------- D1: horizontal strip ----------------------------------------
+  // x-window: Jan 2025 (term start) → P.asOf, so this axis is the SAME
+  // window as the C chart. If asOf doesn't parse, fall back to the last
+  // datable event so the strip still renders.
+  var P       = (window.PRESIDENTS[CURRENT] || {});
+  var startMs = Date.UTC(2025, 0, 1);
+  var asOfMs  = _dsvAsOfToTimeMs(P.asOf);
+  if(isNaN(asOfMs)){
+    var maxMs = -Infinity;
+    pack.timeline.forEach(function(t){
+      var ms = _dsvDateToTimeMs(t && t.date);
+      if(!isNaN(ms) && ms > maxMs) maxMs = ms;
+    });
+    asOfMs = (maxMs > -Infinity) ? maxMs : startMs + 30*86400000;
+  }
+  if(asOfMs <= startMs) asOfMs = startMs + 30*86400000;   // degenerate fallback
+  var span = asOfMs - startMs;
+
+  // Strip SVG geometry — mirrors the trajectory chart's x-range
+  // (startX=70, endX=520) so the two surfaces stack with aligned time
+  // axes. The date ticks line up exactly under their counterparts in C.
+  var SW = 720, SH = 120, sx0 = 70, sx1 = 520, sMidY = 60;
+  function xFor(ms){
+    if(isNaN(ms)) return null;
+    var t = Math.max(0, Math.min(1, (ms - startMs) / span));
+    return sx0 + t * (sx1 - sx0);
+  }
+  var dots = '';
+  pack.timeline.forEach(function(t){
+    if(!t) return;
+    var ms = _dsvDateToTimeMs(t.date);
+    var cx = xFor(ms);
+    if(cx == null) return;   // unparseable date → skip on the strip only
+    var sign = DSV_SIGNS[t.sign] ? t.sign : 'mixed';
+    var cy   = sign === 'strengthened' ? sMidY - 22
+             : sign === 'weakened'     ? sMidY + 22
+             : sMidY;
+    dots += '<circle class="dsv-tl-strip-dot sign-'+sign+'" cx="'+cx.toFixed(1)+'" cy="'+cy+'" r="6">'+
+              '<title>'+_escHtml((t.label||'')+' — '+sign)+'</title>'+
+            '</circle>';
+  });
+
+  var asOfLabel = _escHtml(P.asOf || "today");
+  var stripSvg = ''
+    + '<svg viewBox="0 0 '+SW+' '+SH+'" role="img" aria-label="Timeline strip: events by date and sign">'
+    +   '<line class="dsv-tl-strip-axis" x1="'+sx0+'" y1="'+sMidY+'" x2="'+sx1+'" y2="'+sMidY+'"/>'
+    +   '<text class="dsv-traj-tick" x="'+sx0+'" y="'+(SH-12)+'" text-anchor="start">Jan 2025</text>'
+    +   '<text class="dsv-traj-tick" x="'+sx1+'" y="'+(SH-12)+'" text-anchor="end">'+asOfLabel+'</text>'
+    +   dots
+    + '</svg>';
+
+  // Neutral legend — three signs only, no per-entry glosses.
+  var legend = '<div class="dsv-tl-legend">'
+    +   '<span class="dsv-tl-legpill"><span class="dsv-tl-dot sign-strengthened"></span>strengthened</span>'
+    +   '<span class="dsv-tl-legpill"><span class="dsv-tl-dot sign-weakened"></span>weakened</span>'
+    +   '<span class="dsv-tl-legpill"><span class="dsv-tl-dot sign-mixed"></span>mixed</span>'
+    + '</div>';
+
+  // -------- D2: event list ----------------------------------------------
   var rows = '';
   pack.timeline.forEach(function(t){
     if(!t) return;
-    var signCls = DSV_SIGNS[t.sign] ? ('sign-'+t.sign) : 'sign-mixed';
+    var sign = DSV_SIGNS[t.sign] ? t.sign : 'mixed';
+    // Description: prefer optional event.blurb (author-curated plain English)
+    // else fall back to event.detail. Renderer-only — adding `blurb` to any
+    // pack entry later flips the surface automatically.
+    var body = (typeof t.blurb === "string" && t.blurb.trim())
+                  ? t.blurb.trim()
+                  : (t.detail || '');
     var src = '';
     if(t.sourceLabel || t.sourceUrl){
       var lab = _escHtml(t.sourceLabel || t.sourceUrl || '');
@@ -716,11 +1006,11 @@ function _dsvTimeline(pack){
         '</div>';
     }
     rows += '<li>'+
-              '<div class="dsv-tl-date">'+_escHtml(t.date||'')+'</div>'+
-              '<div class="dsv-tl-dotcol"><span class="dsv-tl-dot '+signCls+'" title="'+_escHtml(t.sign||'mixed')+'"></span></div>'+
+              '<span class="dsv-tl-dot sign-'+sign+'" title="'+_escHtml(sign)+'"></span>'+
+              '<div class="dsv-tl-date">'+_dsvMonYY(t.date||'')+'</div>'+
               '<div class="dsv-tl-text">'+
-                '<div class="dsv-tl-label">'+_escHtml(t.label||'')+'</div>'+
-                (t.detail ? '<div class="dsv-tl-detail">'+_escHtml(t.detail)+'</div>' : '')+
+                '<span class="dsv-tl-label">'+_escHtml(t.label||'')+'</span>'+
+                (body ? ' <span class="dsv-tl-dash">&mdash;</span> <span class="dsv-tl-body">'+_escHtml(body)+'</span>' : '')+
                 src+
               '</div>'+
             '</li>';
@@ -728,19 +1018,47 @@ function _dsvTimeline(pack){
 
   return '<section class="dsv-section">'+
            '<p class="dsv-eyebrow">What actually happened, when</p>'+
-           '<ul class="dsv-tl">'+rows+'</ul>'+
+           '<div class="dsv-tl-strip">'+stripSvg+'</div>'+
+           legend+
+           '<ul class="dsv-tl-list">'+rows+'</ul>'+
          '</section>';
 }
 
 /* ---- E. Levers grid ---------------------------------------------------
-   Wraps the existing _buildLeversHtml(d) — unchanged — and surfaces it as
-   a top-level section. Returns "" when the entry has no levers. */
+   Renders the five levers as labeled prose blocks. Per-lever prose flows
+   through _dsvLeverProse() which accepts BOTH the legacy plain-string
+   shape (used today) and an optional object shape `{summary, text}` where
+   `summary` (plain-English) wins over `text`. Renderer-only: lets a
+   future author add a friendlier summary to any lever without changing
+   the data file's required shape. Falls back to the existing
+   _buildLeversHtml() output when no per-lever object shape is present
+   (so the legacy object-of-strings shape used by every current entry
+   keeps rendering exactly as before). */
 function _dsvLevers(d){
-  var inner = _buildLeversHtml(d);
-  if(!inner) return "";
+  if(!d || !d.levers || Array.isArray(d.levers) || typeof d.levers !== "object"){
+    // Legacy/array shape or no levers → defer to the existing helper,
+    // which already handles those cases (and returns "" when empty).
+    var legacy = _buildLeversHtml(d);
+    if(!legacy) return "";
+    return '<section class="dsv-section">'+
+             '<p class="dsv-eyebrow">Why we scored it</p>'+
+             legacy+
+           '</section>';
+  }
+
+  // Object form — iterate LEVER_ORDER for stable display order, prefer
+  // .summary then .text then the string-shape value.
+  var rows = "";
+  LEVER_ORDER.forEach(function(id){
+    var prose = _dsvLeverProse(d.levers[id]);
+    if(!prose) return;
+    rows += '<div class="condnote"><span class="condnote-lab">'+LEVER_LABEL[id]+'</span>'+
+            _renderProseBlock(prose)+'</div>';
+  });
+  if(!rows) return "";
   return '<section class="dsv-section">'+
            '<p class="dsv-eyebrow">Why we scored it</p>'+
-           inner+
+           rows+
          '</section>';
 }
 
@@ -794,10 +1112,12 @@ function _dsvFooter(d, k, pack){
   var html = '';
 
   // ----- 1. Full causal argument
+  // The full outcome (every sentence, citations intact) lives here — the
+  // top-of-dossier summary only shows the short clipped first clause, so
+  // the verbatim text needs an accessible home for audit.
   var pts      = pointsOf(d);
   var sColor   = STATE_COLOR[d.state] || "--s-neutral";
   var outFull  = (d.outcome && d.outcome !== "—") ? d.outcome : "";
-  var outRest  = _splitOutcomeHeadline(outFull).rest;
   var inherited= inheritedOf(d);
   var hasInh   = Array.isArray(inherited) ? inherited.length>0 : !!inherited;
 
@@ -806,9 +1126,9 @@ function _dsvFooter(d, k, pack){
     whyHtml += '<div class="condnote"><span class="condnote-lab">Inherited trajectory</span>'+
                _renderProseBlock(inherited)+'</div>';
   }
-  if(outRest){
-    whyHtml += '<div class="outcome-rest"><span class="blab">Outcome (continued)</span>'+
-               _renderProseBlock(outRest)+'</div>';
+  if(outFull){
+    whyHtml += '<div class="outcome-rest"><span class="blab">Outcome (verbatim)</span>'+
+               _renderProseBlock(outFull)+'</div>';
   }
   if(pts.length){
     if(whyHtml) whyHtml += '<div class="dsec-sublab">Causal argument</div>';
